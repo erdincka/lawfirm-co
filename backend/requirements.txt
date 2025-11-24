@@ -1,0 +1,10 @@
+fastapi==0.109.0
+pandas==2.2.0
+numpy==1.26.3
+pydantic==2.6.0
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+python-multipart
+faker==22.5.1
+httpx==0.26.0
+uvicorn==0.27.0

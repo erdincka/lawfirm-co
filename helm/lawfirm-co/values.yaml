@@ -1,0 +1,45 @@
+# Default values for lawfirm Helm chart
+
+ezua:
+  domainName: "${DOMAIN_NAME}"
+  virtualService:
+    endpoint: "lawfirm-co.${DOMAIN_NAME}"
+    istioGateway: "istio-system/ezaf-gateway"
+
+namespace: lawfirm
+
+backend:
+  replicaCount: 1
+  image:
+    repository: erdincka/lawfirm-backend
+    pullPolicy: Always
+    tag: "latest"
+  service:
+    port: 8000
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  env: {}
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: erdincka/lawfirm-frontend
+    pullPolicy: Always
+    tag: "latest"
+  service:
+    port: 3000
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  env: {}
