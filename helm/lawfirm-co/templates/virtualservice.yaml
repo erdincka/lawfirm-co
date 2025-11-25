@@ -16,6 +16,6 @@ spec:
         uri: /
       route:
         - destination:
-            host: {{ .Chart.Name }}.{{ .Release.Namespace }}.svc.cluster.local
+            host: {{ include "lawfirm.fullname" . }}-frontend.{{ .Release.Namespace }}.svc.cluster.local
             port:
-              number: {{ .Values.service.port }}
+              number: {{ .Values.frontend.service.port }}

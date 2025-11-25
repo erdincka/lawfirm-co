@@ -16,6 +16,8 @@ interface Case {
 export default function Home() {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
 
   useEffect(() => {
     fetch('/api/cases/')
@@ -29,6 +31,16 @@ export default function Home() {
         setLoading(false);
       });
   }, []);
+
+  // Sort cases by date (newest first) and apply filters
+  const filteredAndSortedCases = cases
+    .filter(c => statusFilter === 'all' || c.status === statusFilter)
+    .filter(c => typeFilter === 'all' || c.case_type === typeFilter)
+    .sort((a, b) => new Date(b.date_opened).getTime() - new Date(a.date_opened).getTime());
+
+  // Get unique statuses and types for filters
+  const uniqueStatuses = Array.from(new Set(cases.map(c => c.status)));
+  const uniqueTypes = Array.from(new Set(cases.map(c => c.case_type)));
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
@@ -50,13 +62,43 @@ export default function Home() {
       </header>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-6 border-b border-slate-800 pb-2">Active Cases</h2>
+        <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+          <h2 className="text-2xl font-semibold">Active Cases</h2>
+          <div className="flex gap-3">
+            <div>
+              <label className="text-xs text-slate-500 block mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="all">All Statuses</option>
+                {uniqueStatuses.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1">Type</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="all">All Types</option>
+                {uniqueTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
 
         {loading ? (
           <div className="text-center py-20 text-slate-500 animate-pulse">Loading secure case files...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cases.map((c) => (
+            {filteredAndSortedCases.map((c) => (
               <Link href={`/cases/${c.id}`} key={c.id} className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 hover:border-amber-500/50 transition duration-300 group block">
                 <div className="flex justify-between items-start mb-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${c.status === 'Open' ? 'bg-green-900/30 text-green-400 border border-green-800' :

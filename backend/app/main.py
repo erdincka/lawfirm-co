@@ -1,27 +1,32 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from . import models, schemas, database, seed, routers_admin, routers_settings, routers_chat
+from fastapi.middleware.cors import CORSMiddleware
+from . import models, schemas, database, seed, routers_admin, routers_settings, routers_chat, routers_ai
 from .database import engine
-from sqlalchemy import text
 
 # Create tables first
 models.Base.metadata.create_all(bind=engine)
 
-# Then run migration to add new columns if they don't exist
-try:
-    with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_data BYTEA"))
-        conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_type VARCHAR"))
-        conn.commit()
-except Exception as e:
-    print(f"Migration warning: {e}")
-
 app = FastAPI(title="Justitia & Associates API")
+
+# -----------------------------------------------------------------
+# CORS configuration
+# -----------------------------------------------------------------
+# In development you can allow everything. In production replace
+# ["*"] with the actual origins (e.g. ["https://your‑frontend.com"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # <-- allow any origin (dev)
+    allow_credentials=True,
+    allow_methods=["*"],          # GET, POST, PUT, DELETE, etc.
+    allow_headers=["*"],          # any custom headers
+)
 
 app.include_router(routers_admin.router)
 app.include_router(routers_settings.router)
 app.include_router(routers_chat.router)
+app.include_router(routers_ai.router)
 
 # Dependency
 def get_db():
@@ -60,9 +65,9 @@ async def upload_document(
     
     content = await file.read()
     
-    # Simple text extraction for text files (placeholder for OCR/extraction logic)
+    # Simple text extraction based on file extension
     text_content = description or ""
-    if file.content_type.startswith("text/") or file.filename.endswith(".txt"):
+    if file.filename.endswith((".txt", ".md", ".log", ".html", ".csv", ".json", ".xml", ".rtf")):
         try:
             text_content = content.decode("utf-8")
         except:
@@ -71,8 +76,6 @@ async def upload_document(
     doc = models.Document(
         title=file.filename,
         content=text_content,
-        file_data=content,
-        content_type=file.content_type,
         case_id=case_id
     )
     db.add(doc)
@@ -100,6 +103,8 @@ def delete_document(case_id: int, document_id: int, db: Session = Depends(get_db
     db.commit()
     
     return {"message": "Document deleted successfully", "document_id": document_id}
+
+
 
 @app.post("/cases/{case_id}/evidence")
 def create_evidence(case_id: int, evidence: schemas.EvidenceCreate, db: Session = Depends(get_db)):

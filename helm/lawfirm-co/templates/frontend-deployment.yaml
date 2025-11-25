@@ -6,6 +6,7 @@ metadata:
   name: {{ $fullName }}-frontend
   namespace: {{ .Values.namespace }}
   labels:
+    app.kubernetes.io/name: {{ $fullName }}-frontend
     {{- $labels | nindent 4 }}
 spec:
   replicas: {{ .Values.frontend.replicaCount }}

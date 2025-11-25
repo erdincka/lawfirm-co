@@ -4,6 +4,7 @@ metadata:
   name: {{ include "lawfirm.fullname" . }}-backend
   namespace: {{ .Values.namespace }}
   labels:
+    app.kubernetes.io/name: {{ include "lawfirm.fullname" . }}-backend
     {{- include "lawfirm.labels" . | nindent 4 }}
 spec:
   selector:

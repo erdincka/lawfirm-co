@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Enum, LargeBinary
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Enum
 from sqlalchemy.orm import relationship
 from .database import Base
 from .models_settings import SystemSetting
@@ -64,8 +64,6 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     content = Column(Text) # Extracted text or description
-    file_data = Column(LargeBinary, nullable=True) # Binary file content
-    content_type = Column(String, nullable=True) # MIME type
     created_date = Column(DateTime, default=datetime.datetime.utcnow)
     
     case_id = Column(Integer, ForeignKey("cases.id"))

@@ -85,3 +85,5 @@ def get_table_records(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+

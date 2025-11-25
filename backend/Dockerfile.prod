@@ -1,11 +1,11 @@
 # Multi-stage build for production
-FROM python:3.12-slim AS builder
+FROM --platform=linux/amd64 python:3.12-slim AS builder
 
 WORKDIR /app
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    gcc build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements
@@ -25,7 +25,9 @@ ENV PATH=/usr/local/bin:$PATH
 COPY ./app ./app
 
 # Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/data && \
+    chown -R appuser:appuser /app
 USER appuser
 
 # Health check

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import httpx
-from . import database, models, models_settings, schemas_chat
+import base64
+from . import database, models, models_settings, schemas_chat, rag_memory
 
 router = APIRouter(
     prefix="/chat",
@@ -29,6 +30,26 @@ def get_llm_config(db: Session):
         return None, None
     
     return endpoint.value, api_key.value
+
+def get_embedding_config(db: Session):
+    """Retrieve embedding API configuration from settings"""
+    endpoint = db.query(models_settings.SystemSetting).filter(
+        models_settings.SystemSetting.key == "embedding_endpoint"
+    ).first()
+    api_key = db.query(models_settings.SystemSetting).filter(
+        models_settings.SystemSetting.key == "embedding_api_key"
+    ).first()
+    model = db.query(models_settings.SystemSetting).filter(
+        models_settings.SystemSetting.key == "embedding_model"
+    ).first()
+    
+    if not endpoint or not api_key:
+        return None, None, None
+    
+    # Model is optional, default to text-embedding-ada-002
+    model_name = model.value if model else "text-embedding-ada-002"
+    
+    return endpoint.value, api_key.value, model_name
 
 def is_readable_format(content_type: str) -> bool:
     """Check if content type is readable text format"""
@@ -79,37 +100,14 @@ Specialization: {case.lead_attorney.specialization if case.lead_attorney else 'N
         context += f"\n   Location: {ev.location_found}"
         context += f"\n   Collected: {ev.collected_date}\n"
     
-    # Process documents
-    context += f"\n# DOCUMENTS ({len(case.documents)} items)\n"
-    non_readable_docs = []
+    # Add Document Context (List only)
+    non_readable_docs = [] # Legacy tracking, kept for compatibility
     
+    context += "\n# DOCUMENTS\n"
+    # List document titles for context
     for i, doc in enumerate(case.documents, 1):
-        context += f"\n{i}. {doc.title}"
-        context += f"\n   Created: {doc.created_date}"
-        
-        # Check if document has readable content
-        if doc.file_data and doc.content_type:
-            if is_readable_format(doc.content_type):
-                # Include the actual content
-                text_content = extract_text_content(doc.file_data, doc.content_type)
-                # # Limit content to avoid token overflow (max 2000 chars per doc)
-                # if len(text_content) > 2000:
-                #     text_content = text_content[:2000] + "\n... [content truncated]"
-                context += f"\n   Content Type: {doc.content_type}"
-                context += f"\n   Content:\n{text_content}\n"
-            else:
-                # Track non-readable documents
-                non_readable_docs.append(f"{doc.title} ({doc.content_type})")
-                context += f"\n   Content Type: {doc.content_type} (binary - not included)\n"
-        elif doc.content:
-            # Use the content field if available
-            content_preview = doc.content[:2000] if len(doc.content) > 2000 else doc.content
-            if len(doc.content) > 2000:
-                content_preview += "\n... [content truncated]"
-            context += f"\n   Content:\n{content_preview}\n"
-        else:
-            context += "\n   (No content available)\n"
-    
+        context += f"\n{i}. {doc.title} (Created: {doc.created_date})"
+
     return context, non_readable_docs
 
 async def detect_vlm_capability(llm_endpoint: str, api_key: str, model: str) -> bool:
@@ -174,14 +172,24 @@ async def list_available_models(db: Session = Depends(get_db)):
         "default": models[0] if models else None
     }
 
-@router.post("/cases/{case_id}")
+@router.post("/cases/{case_id}", response_model=schemas_chat.ChatResponse)
 async def chat_with_case(
-    case_id: int,
+    case_id: int, 
     chat_request: schemas_chat.ChatRequest,
     db: Session = Depends(get_db)
 ):
-    """Chat endpoint with case context"""
-    # Get case data
+    """
+    Chat endpoint with case context and automatic RAG.
+    
+    RAG Processing:
+    - Automatically uses all case documents from the database
+    - Optionally accepts additional uploaded documents in the request
+    - Performs semantic search across all documents to find relevant chunks
+    - Augments LLM context with the most relevant information
+    
+    No user action required - documents are automatically included!
+    """
+    # Verify case exists
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -189,12 +197,142 @@ async def chat_with_case(
     # Get LLM configuration
     llm_endpoint, api_key = get_llm_config(db)
     if not llm_endpoint or not api_key:
-        raise HTTPException(
-            status_code=503, 
-            detail="LLM endpoint not configured. Please configure in Admin."
-        )
+        raise HTTPException(status_code=500, detail="LLM configuration missing. Please configure in Admin settings.")
     
-    # Get available models and select one
+    # Build case context (without RAG chunks)
+    case_context, non_readable_docs = build_case_context(case)
+    
+    # Debug logging for development
+    print(f"\n{'='*60}")
+    print(f"CHAT REQUEST DEBUG - Case ID: {case_id}")
+    print(f"{'='*60}")
+    print(f"Case Title: {case.title}")
+    print(f"Case Documents in DB: {len(case.documents)}")
+    if case.documents:
+        for i, doc in enumerate(case.documents, 1):
+            print(f"  {i}. {doc.title} (ID: {doc.id}, Created: {doc.created_date})")
+    print(f"\nQuery: {chat_request.message[:100]}...")
+    print(f"Additional Uploaded Documents: {len(chat_request.documents) if chat_request.documents else 0}")
+    
+    # Process RAG documents - automatically use case documents from DB
+    rag_context = ""
+    chunks_used = 0
+    rag_status = {}
+    
+    print(f"\n--- RAG PROCESSING START ---")
+    
+    try:
+        # Prepare documents for RAG processing
+        rag_documents = []
+        
+        # 1. First, add all case documents from database
+        if case.documents:
+            print(f"Loading {len(case.documents)} document(s) from database...")
+            for idx, doc in enumerate(case.documents, 1):
+                print(f"  [DB-{idx}] Processing: {doc.title}")
+                
+                # Convert document content to bytes
+                if doc.content:
+                    try:
+                        # Document content is stored as text in DB
+                        content_bytes = doc.content.encode('utf-8')
+                        print(f"      Content length: {len(content_bytes)} bytes")
+                        
+                        rag_documents.append({
+                            'title': doc.title,
+                            'content': content_bytes,
+                            'id': f"db_{doc.id}"
+                        })
+                        print(f"      ✓ Successfully prepared for RAG")
+                    except Exception as e:
+                        print(f"      ✗ Error preparing document: {e}")
+                        continue
+                else:
+                    print(f"      ⚠ Document has no content, skipping")
+        else:
+            print("No documents found in database for this case")
+        
+        # 2. Then, add any additionally uploaded documents (optional)
+        if chat_request.documents and len(chat_request.documents) > 0:
+            print(f"\nProcessing {len(chat_request.documents)} additional uploaded document(s)...")
+            
+            for idx, doc_dict in enumerate(chat_request.documents, 1):
+                filename = doc_dict.get('filename', 'unknown.txt')
+                content_b64 = doc_dict.get('content', '')
+                
+                print(f"  [Upload-{idx}] Processing: {filename}")
+                print(f"      Base64 content length: {len(content_b64)} chars")
+                
+                # Decode base64 content
+                try:
+                    content_bytes = base64.b64decode(content_b64)
+                    print(f"      Decoded to {len(content_bytes)} bytes")
+                    
+                    rag_documents.append({
+                        'title': filename,
+                        'content': content_bytes,
+                        'id': f"upload_{filename}"
+                    })
+                    print(f"      ✓ Successfully prepared for RAG")
+                except Exception as e:
+                    print(f"      ✗ Error decoding: {e}")
+                    continue
+        
+        # 3. Build RAG context using all documents
+        if rag_documents:
+            # Get embedding configuration
+            emb_endpoint, emb_api_key, emb_model = get_embedding_config(db)
+            
+            if not emb_endpoint or not emb_api_key:
+                print(f"⚠ Embedding API not configured - skipping RAG")
+                print(f"  Configure embedding_endpoint and embedding_api_key in settings")
+                rag_status = {
+                    "enabled": False,
+                    "reason": "Embedding API not configured"
+                }
+            else:
+                print(f"\n{'─'*60}")
+                print(f"Building RAG context from {len(rag_documents)} total document(s)...")
+                print(f"Using embedding model: {emb_model}")
+                
+                # Call enhanced RAG pipeline with status tracking
+                rag_context, chunks_used, rag_status = await rag_memory.build_rag_context(
+                    query=chat_request.message,
+                    documents=rag_documents,
+                    endpoint=emb_endpoint,
+                    api_key=emb_api_key,
+                    model=emb_model,
+                    top_k=5  # Retrieve top 5 most relevant chunks
+                )
+                
+                if rag_context:
+                    print(f"✓ RAG: Retrieved {chunks_used} relevant chunks")
+                    print(f"  Context length: {len(rag_context)} characters")
+                else:
+                    print(f"✗ RAG: No context generated (empty result)")
+        else:
+            print(f"\n⚠ No documents available for RAG processing")
+            rag_status = {
+                "enabled": False,
+                "reason": "No documents available"
+            }
+            
+    except Exception as e:
+        print(f"✗ Error in RAG processing: {e}")
+        import traceback
+        traceback.print_exc()
+        # Continue without RAG context if there's an error
+        rag_context = ""
+        chunks_used = 0
+        rag_status = {
+            "enabled": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+    
+    print(f"--- RAG PROCESSING END ---\n")
+    
+    # Determine model to use
     model_to_use = chat_request.model
     if not model_to_use:
         available_models = await get_available_models(llm_endpoint, api_key)
@@ -206,14 +344,22 @@ async def chat_with_case(
     # Detect if model supports vision
     is_vlm = await detect_vlm_capability(llm_endpoint, api_key, model_to_use)
     
-    # Build case context
-    case_context, non_readable_docs = build_case_context(case)
-    
     # Prepare system message
     system_content = f"""You are a legal assistant helping prosecutors analyze case details.
 
 {case_context}
+"""
+    
+    # Add RAG context if available
+    if rag_context:
+        system_content += f"""
+# RELEVANT DOCUMENT EXCERPTS
+The following excerpts were retrieved from uploaded documents as most relevant to the query:
 
+{rag_context}
+"""
+    
+    system_content += """
 Provide accurate, professional responses based on this case data. If asked about information not in the case files, clearly state that."""
     
     # Add notification about non-readable documents if any
@@ -302,18 +448,21 @@ Provide accurate, professional responses based on this case data. If asked about
                 "is_vlm": is_vlm,
                 "system_message": system_content,
                 "evidence_count": len(case.evidence),
-                "total_documents": len(case.documents),
+                "case_documents_count": len(case.documents),
+                "additional_uploaded_documents": len(chat_request.documents) if chat_request.documents else 0,
                 "non_readable_documents": non_readable_docs,
                 "message_count": len(messages),
-                "total_tokens_estimate": len(str(messages)) // 4
+                "total_tokens_estimate": len(str(messages)) // 4,
+                "rag_chunks_used": chunks_used,
+                "rag_enabled": chunks_used > 0,
+                "rag_status": rag_status  # Include comprehensive RAG pipeline status
             }
             
-            return {
-                "response": assistant_message,
-                "case_id": case_id,
-                "model_used": model_to_use,
-                "debug_info": debug_info
-            }
+            return schemas_chat.ChatResponse(
+                response=assistant_message,
+                context_used=True,
+                debug_info=debug_info
+            )
             
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="LLM request timed out")
