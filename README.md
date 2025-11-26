@@ -68,7 +68,7 @@ DATABASE_URL=postgresql://user:password@postgres:5432/lawfirm
 
 **Frontend (.env.local)**
 ```env
-BACKEND_URL=http://backend:8000
+BACKEND_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 

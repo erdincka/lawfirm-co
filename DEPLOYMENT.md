@@ -98,15 +98,7 @@ spec:
               number: 3000
 ```
 
-## Step 6: Database Migration
-
-Run database migrations:
-
-```bash
-kubectl exec -it <backend-pod-name> -- python -m alembic upgrade head
-```
-
-## Step 7: Monitoring Setup
+## Step 6: Monitoring Setup
 
 ### Health Checks
 
@@ -126,7 +118,7 @@ metadata:
     prometheus.io/path: "/metrics"
 ```
 
-## Step 8: Scaling
+## Step 7: Scaling
 
 ### Horizontal Pod Autoscaler
 
@@ -151,7 +143,7 @@ spec:
         averageUtilization: 70
 ```
 
-## Step 9: Backup Strategy
+## Step 8: Backup Strategy
 
 ### Database Backups
 
@@ -165,7 +157,7 @@ kubectl exec -it <postgres-pod> -- pg_dump -U user lawfirm > backup.sql
 kubectl exec -i <postgres-pod> -- psql -U user lawfirm < backup.sql
 ```
 
-## Step 10: Monitoring and Logging
+## Step 9: Monitoring and Logging
 
 ### Recommended Tools
 
