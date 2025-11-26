@@ -1,8 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "lawfirm.fullname" . }}-backend
-  namespace: {{ .Values.namespace }}
+  name: backend
   labels:
     app.kubernetes.io/name: {{ include "lawfirm.fullname" . }}-backend
     {{- include "lawfirm.labels" . | nindent 4 }}

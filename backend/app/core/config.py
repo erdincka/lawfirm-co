@@ -22,10 +22,7 @@ class Settings:
         "DATABASE_URL",
         "postgresql://user:password@db:5432/lawfirm"
     )
-    
-    # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
-    
+
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         origin.strip()
@@ -68,19 +65,14 @@ class Settings:
     def validate(self) -> None:
         """Validate critical settings"""
         if self.is_production:
-            if self.SECRET_KEY == "change-me-in-production":
-                raise ValueError("SECRET_KEY must be set in production!")
-            
             if "*" in self.ALLOWED_ORIGINS:
                 raise ValueError("ALLOWED_ORIGINS cannot contain '*' in production!")
             
             if not self.DATABASE_URL.startswith("postgresql"):
                 raise ValueError("DATABASE_URL must use PostgreSQL in production!")
         else:
-            # Development mode - just warn
-            import warnings
-            if self.SECRET_KEY == "change-me-in-production":
-                warnings.warn("SECRET_KEY is using default value - set in .env for production")
+            # Development mode - none
+            pass
 
 
 @lru_cache()

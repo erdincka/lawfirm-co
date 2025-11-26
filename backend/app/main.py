@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Bac
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
 from . import models, schemas, database, seed, routers_admin, routers_settings, routers_chat, routers_ai
 from .database import engine
@@ -101,8 +102,12 @@ if settings.is_production:
         origin.replace("https://", "").replace("http://", "").split(":")[0]
         for origin in settings.ALLOWED_ORIGINS
     ]
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
-    logger.info(f"Trusted hosts: {allowed_hosts}")
+    # TrustedHostMiddleware can cause issues in Kubernetes where internal traffic
+    # (e.g. from frontend SSR) uses service names like 'lawfirm-backend' which
+    # aren't in ALLOWED_ORIGINS. Ingress usually handles host validation anyway.
+    # app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    # logger.info(f"Trusted hosts: {allowed_hosts}")
+    pass
 
 # -----------------------------------------------------------------
 # Routers

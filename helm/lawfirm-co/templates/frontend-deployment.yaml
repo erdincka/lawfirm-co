@@ -4,7 +4,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $fullName }}-frontend
-  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: {{ $fullName }}-frontend
     {{- $labels | nindent 4 }}

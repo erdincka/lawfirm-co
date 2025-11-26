@@ -5,8 +5,11 @@ ezua:
   virtualService:
     endpoint: "lawfirm-co.${DOMAIN_NAME}"
     istioGateway: "istio-system/ezaf-gateway"
-
-namespace: lawfirm
+  authorizationPolicy:
+    namespace: "istio-system"
+    providerName: "oauth2-proxy"
+    matchLabels:
+      app: "lawfirm"
 
 backend:
   replicaCount: 1
@@ -25,31 +28,26 @@ backend:
       cpu: "500m"
       memory: "256Mi"
   env:
-    # Database Configuration
-    DATABASE_URL: "postgresql://user:password@db:5432/lawfirm"
-    
-    # Application Settings
-    DEBUG: "false"
-    
-    # CORS Settings (comma-separated origins)
-    ALLOWED_ORIGINS: "http://localhost:3000,https://${DOMAIN_NAME}"
-    
-    # Security
-    SECRET_KEY: "your-secret-key-here-change-in-production"
-    
-    # Logging Configuration
-    LOG_LEVEL: "INFO"
-    LOG_FORMAT: "json"
-    LOG_FILE: ""
-    
-    # RAG Configuration
-    RAG_CHUNK_SIZE: "500"
-    RAG_CHUNK_OVERLAP: "50"
-    RAG_TOP_K: "5"
-    
-    # API Timeouts (seconds)
-    LLM_TIMEOUT: "60"
-    EMBEDDING_TIMEOUT: "60"
+    - name: DEBUG
+      value: "false"
+    - name: ALLOWED_ORIGINS
+      value: "http://localhost:3000,https://${DOMAIN_NAME}"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: LOG_FORMAT
+      value: "json"
+    - name: LOG_FILE
+      value: ""
+    - name: RAG_CHUNK_SIZE
+      value: "500"
+    - name: RAG_CHUNK_OVERLAP
+      value: "50"
+    - name: RAG_TOP_K
+      value: "5"
+    - name: LLM_TIMEOUT
+      value: "60"
+    - name: EMBEDDING_TIMEOUT
+      value: "60"
 
 frontend:
   replicaCount: 1
@@ -68,3 +66,10 @@ frontend:
       cpu: "500m"
       memory: "256Mi"
   env: {}
+
+db:
+  persistence:
+    enabled: true          # Set to false to disable PVC creation
+    size: "1Gi"            # Default storage request
+    storageClass: ""       # Optional storage class (leave empty for default)
+    

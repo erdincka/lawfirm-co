@@ -4,7 +4,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $fullName }}-backend
-  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: {{ $fullName }}-backend
     {{- $labels | nindent 4 }}
@@ -26,6 +25,8 @@ spec:
           ports:
             - containerPort: {{ .Values.backend.service.targetPort }}
           env:
+            - name: DATABASE_URL
+              value: "postgresql://user:password@db:5432/lawfirm"
 {{- if .Values.backend.env }}
 {{ toYaml .Values.backend.env | indent 12 }}
 {{- end }}
