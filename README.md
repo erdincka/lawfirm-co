@@ -2,6 +2,10 @@
 
 A modern, full-stack case management system for law firms with AI-powered chat assistance.
 
+![Dashboard](./docs/images/Dashboard.png)
+
+More screenshots can be found in the [docs/images](./docs/images) directory.
+
 ## 🏗️ Architecture
 
 - **Frontend**: Next.js 15 with TypeScript, Tailwind CSS
