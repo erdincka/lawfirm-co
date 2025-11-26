@@ -2,17 +2,20 @@ from sqlalchemy.orm import Session
 from . import models
 from faker import Faker
 import random
+from .core import get_logger
 
 fake = Faker()
+
+logger = get_logger(__name__)
 
 def seed_db(db: Session):
     # Only seed if database is empty (no lawyers exist)
     existing_lawyers = db.query(models.Lawyer).count()
     if existing_lawyers > 0:
-        print("Database already has data, skipping seed.")
+        logger.info("Database already has data, skipping seed.")
         return
     
-    print("Seeding database with sample data...")
+    logger.info("Seeding database with sample data...")
     
     # Clear existing data to ensure fresh seed (only runs if we're seeding)
     db.query(models.Document).delete()
@@ -24,7 +27,7 @@ def seed_db(db: Session):
     # Create Lawyers
     lawyers = []
     specializations = ["Homicide", "Fraud", "Cybercrime", "Narcotics", "General Litigation"]
-    for _ in range(5):
+    for _ in range(15):
         full_name = fake.name()
         # Create email: firstname.lastname@justitia.co.uk
         email_name = full_name.lower().replace(" ", ".").replace("..", ".")
@@ -96,7 +99,7 @@ def seed_db(db: Session):
             content += f"\n\nFURTHER DETAILS:\n{fake.paragraph(nb_sentences=8)}"
 
             doc = models.Document(
-                title=f"{doc_type} - {fake.file_name(extension='pdf')}",
+                title=f"{doc_type} - {fake.file_name(extension='txt')}",
                 content=content,
                 created_date=fake.date_time_between(start_date=case.date_opened, end_date="now"),
                 case_id=case.id

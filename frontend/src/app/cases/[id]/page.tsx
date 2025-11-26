@@ -827,7 +827,7 @@ export default function CasePage() {
                                                         <div key={idx} className="border-b border-slate-800 pb-4 last:border-0 last:pb-0">
                                                             <div className="flex justify-between items-start mb-2">
                                                                 <div className="font-bold text-amber-500 text-sm">{step.step_name}</div>
-                                                                <div className="text-xs text-slate-500">{step.model_used}</div>
+                                                                <div className="text-xs text-slate-500">{step.used_model}</div>
                                                             </div>
 
                                                             {step.error ? (

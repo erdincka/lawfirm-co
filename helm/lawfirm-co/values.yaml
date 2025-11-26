@@ -24,7 +24,32 @@ backend:
     limits:
       cpu: "500m"
       memory: "256Mi"
-  env: {}
+  env:
+    # Database Configuration
+    DATABASE_URL: "postgresql://user:password@db:5432/lawfirm"
+    
+    # Application Settings
+    DEBUG: "false"
+    
+    # CORS Settings (comma-separated origins)
+    ALLOWED_ORIGINS: "http://localhost:3000,https://${DOMAIN_NAME}"
+    
+    # Security
+    SECRET_KEY: "your-secret-key-here-change-in-production"
+    
+    # Logging Configuration
+    LOG_LEVEL: "INFO"
+    LOG_FORMAT: "json"
+    LOG_FILE: ""
+    
+    # RAG Configuration
+    RAG_CHUNK_SIZE: "500"
+    RAG_CHUNK_OVERLAP: "50"
+    RAG_TOP_K: "5"
+    
+    # API Timeouts (seconds)
+    LLM_TIMEOUT: "60"
+    EMBEDDING_TIMEOUT: "60"
 
 frontend:
   replicaCount: 1

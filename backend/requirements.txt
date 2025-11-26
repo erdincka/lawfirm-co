@@ -1,5 +1,4 @@
 fastapi==0.109.0
-pandas==2.2.0
 numpy==1.26.3
 pydantic==2.6.0
 sqlalchemy==2.0.25

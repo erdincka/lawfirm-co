@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import httpx
 from . import database, models, models_settings, schemas_ai, schemas
+from .core import get_logger
+from .utils import get_llm_config
+
+logger = get_logger(__name__)
 
 # Try to import reportlab, if fails, we'll handle it
 try:
@@ -29,17 +33,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-def get_llm_config(db: Session):
-    endpoint = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "llm_endpoint"
-    ).first()
-    api_key = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "llm_api_key"
-    ).first()
-    if not endpoint or not api_key:
-        return None, None
-    return endpoint.value, api_key.value
 
 async def call_llm(endpoint, api_key, messages, model="gpt-4"):
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -90,7 +83,7 @@ async def get_available_models(llm_endpoint: str, api_key: str):
                 return []
             return []
     except Exception as e:
-        print(f"Error fetching models: {e}")
+        logger.error(f"Error fetching models: {e}")
         return []
 
 @router.post("/cases/{case_id}/dramatis-personae", response_model=schemas_ai.DramatisPersonaeResponse)
@@ -106,7 +99,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
     # Determine model to use
     available_models = await get_available_models(llm_endpoint, api_key)
     model_to_use = available_models[0] if available_models else "gpt-4"
-    print(f"Using model: {model_to_use}")
+    logger.info(f"Using model: {model_to_use}")
 
     # 1. Extract from each document
     extracted_people = []
@@ -143,10 +136,10 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
                     # Fallback to raw content if extraction fails or returns empty
                     docs_to_process.append({"title": doc.title, "content": doc.content})
             except Exception as e:
-                print(f"Error extracting text from {doc.title}: {e}")
+                logger.error(f"Error extracting text from {doc.title}: {e}")
                 docs_to_process.append({"title": doc.title, "content": doc.content})
 
-    print(f"Processing {len(docs_to_process)} documents for Dramatis Personae...")
+    logger.info(f"Processing {len(docs_to_process)} documents for Dramatis Personae...")
 
     for doc in docs_to_process:
         prompt = f"""
@@ -166,7 +159,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
         
         step_info = {
             "step_name": f"Extraction - {doc['title']}",
-            "model_used": model_to_use,
+            "used_model": model_to_use,
             "prompt_sent": prompt,
             "content_snippet": doc['content'][:200] + "...",
             "raw_response": "",
@@ -187,7 +180,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
                 step_info["error"] = "No JSON array found in response"
                 
         except Exception as e:
-            print(f"Error processing doc {doc['title']}: {e}")
+            logger.error(f"Error processing doc {doc['title']}: {e}")
             step_info["error"] = str(e)
             
         debug_steps.append(schemas_ai.DebugStep(**step_info))
@@ -210,7 +203,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
     
     cons_step_info = {
         "step_name": "Consolidation",
-        "model_used": model_to_use,
+        "used_model": model_to_use,
         "prompt_sent": consolidation_prompt,
         "content_snippet": f"Input list size: {len(extracted_people)} items",
         "raw_response": "",
@@ -229,7 +222,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
              cons_step_info["error"] = "No JSON array found in consolidation response"
              
     except Exception as e:
-        print(f"Error consolidating: {e}")
+        logger.error(f"Error consolidating: {e}")
         cons_step_info["error"] = str(e)
         
     debug_steps.append(schemas_ai.DebugStep(**cons_step_info))
@@ -296,5 +289,5 @@ async def save_dramatis_personae_pdf(case_id: int, personae: schemas_ai.Dramatis
         
         return {"message": "Saved successfully", "document_id": new_doc.id}
     except Exception as e:
-        print(f"Error generating PDF: {e}")
+        logger.error(f"Error generating PDF: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")

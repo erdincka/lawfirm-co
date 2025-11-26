@@ -65,3 +65,6 @@ kubernetes/secrets/
 tmp/
 temp/
 *.tmp
+
+# Cleanup backups
+backups/

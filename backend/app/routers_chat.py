@@ -4,6 +4,10 @@ from typing import List
 import httpx
 import base64
 from . import database, models, models_settings, schemas_chat, rag_memory
+from .core import get_logger
+from .utils import get_llm_config, get_embedding_config
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/chat",
@@ -16,40 +20,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-def get_llm_config(db: Session):
-    """Retrieve LLM configuration from settings"""
-    endpoint = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "llm_endpoint"
-    ).first()
-    api_key = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "llm_api_key"
-    ).first()
-    
-    if not endpoint or not api_key:
-        return None, None
-    
-    return endpoint.value, api_key.value
-
-def get_embedding_config(db: Session):
-    """Retrieve embedding API configuration from settings"""
-    endpoint = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "embedding_endpoint"
-    ).first()
-    api_key = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "embedding_api_key"
-    ).first()
-    model = db.query(models_settings.SystemSetting).filter(
-        models_settings.SystemSetting.key == "embedding_model"
-    ).first()
-    
-    if not endpoint or not api_key:
-        return None, None, None
-    
-    # Model is optional, default to text-embedding-ada-002
-    model_name = model.value if model else "text-embedding-ada-002"
-    
-    return endpoint.value, api_key.value, model_name
 
 def is_readable_format(content_type: str) -> bool:
     """Check if content type is readable text format"""
@@ -148,7 +118,7 @@ async def get_available_models(llm_endpoint: str, api_key: str):
                 return []
             return []
     except Exception as e:
-        print(f"Error fetching models: {e}")
+        logger.error(f"Error fetching models: {e}")
         return []
 
 @router.get("/models")
@@ -203,23 +173,23 @@ async def chat_with_case(
     case_context, non_readable_docs = build_case_context(case)
     
     # Debug logging for development
-    print(f"\n{'='*60}")
-    print(f"CHAT REQUEST DEBUG - Case ID: {case_id}")
-    print(f"{'='*60}")
-    print(f"Case Title: {case.title}")
-    print(f"Case Documents in DB: {len(case.documents)}")
+    logger.debug("="*60)
+    logger.debug(f"CHAT REQUEST DEBUG - Case ID: {case_id}")
+    logger.debug("="*60)
+    logger.debug(f"Case Title: {case.title}")
+    logger.debug(f"Case Documents in DB: {len(case.documents)}")
     if case.documents:
         for i, doc in enumerate(case.documents, 1):
-            print(f"  {i}. {doc.title} (ID: {doc.id}, Created: {doc.created_date})")
-    print(f"\nQuery: {chat_request.message[:100]}...")
-    print(f"Additional Uploaded Documents: {len(chat_request.documents) if chat_request.documents else 0}")
+            logger.debug(f"  {i}. {doc.title} (ID: {doc.id}, Created: {doc.created_date})")
+    logger.debug(f"Query: {chat_request.message[:100]}...")
+    logger.debug(f"Additional Uploaded Documents: {len(chat_request.documents) if chat_request.documents else 0}")
     
     # Process RAG documents - automatically use case documents from DB
     rag_context = ""
     chunks_used = 0
     rag_status = {}
     
-    print(f"\n--- RAG PROCESSING START ---")
+    logger.info("RAG PROCESSING START")
     
     try:
         # Prepare documents for RAG processing
@@ -227,55 +197,55 @@ async def chat_with_case(
         
         # 1. First, add all case documents from database
         if case.documents:
-            print(f"Loading {len(case.documents)} document(s) from database...")
+            logger.debug(f"Loading {len(case.documents)} document(s) from database...")
             for idx, doc in enumerate(case.documents, 1):
-                print(f"  [DB-{idx}] Processing: {doc.title}")
+                logger.debug(f"  [DB-{idx}] Processing: {doc.title}")
                 
                 # Convert document content to bytes
                 if doc.content:
                     try:
                         # Document content is stored as text in DB
                         content_bytes = doc.content.encode('utf-8')
-                        print(f"      Content length: {len(content_bytes)} bytes")
+                        logger.debug(f"      Content length: {len(content_bytes)} bytes")
                         
                         rag_documents.append({
                             'title': doc.title,
                             'content': content_bytes,
                             'id': f"db_{doc.id}"
                         })
-                        print(f"      ✓ Successfully prepared for RAG")
+                        logger.debug(f"      ✓ Successfully prepared for RAG")
                     except Exception as e:
-                        print(f"      ✗ Error preparing document: {e}")
+                        logger.warning(f"      ✗ Error preparing document: {e}")
                         continue
                 else:
-                    print(f"      ⚠ Document has no content, skipping")
+                    logger.warning(f"      ⚠ Document has no content, skipping")
         else:
-            print("No documents found in database for this case")
+            logger.info("No documents found in database for this case")
         
         # 2. Then, add any additionally uploaded documents (optional)
         if chat_request.documents and len(chat_request.documents) > 0:
-            print(f"\nProcessing {len(chat_request.documents)} additional uploaded document(s)...")
+            logger.debug(f"Processing {len(chat_request.documents)} additional uploaded document(s)...")
             
             for idx, doc_dict in enumerate(chat_request.documents, 1):
                 filename = doc_dict.get('filename', 'unknown.txt')
                 content_b64 = doc_dict.get('content', '')
                 
-                print(f"  [Upload-{idx}] Processing: {filename}")
-                print(f"      Base64 content length: {len(content_b64)} chars")
+                logger.debug(f"  [Upload-{idx}] Processing: {filename}")
+                logger.debug(f"      Base64 content length: {len(content_b64)} chars")
                 
                 # Decode base64 content
                 try:
                     content_bytes = base64.b64decode(content_b64)
-                    print(f"      Decoded to {len(content_bytes)} bytes")
+                    logger.debug(f"      Decoded to {len(content_bytes)} bytes")
                     
                     rag_documents.append({
                         'title': filename,
                         'content': content_bytes,
                         'id': f"upload_{filename}"
                     })
-                    print(f"      ✓ Successfully prepared for RAG")
+                    logger.debug(f"      ✓ Successfully prepared for RAG")
                 except Exception as e:
-                    print(f"      ✗ Error decoding: {e}")
+                    logger.warning(f"      ✗ Error decoding: {e}")
                     continue
         
         # 3. Build RAG context using all documents
@@ -284,16 +254,16 @@ async def chat_with_case(
             emb_endpoint, emb_api_key, emb_model = get_embedding_config(db)
             
             if not emb_endpoint or not emb_api_key:
-                print(f"⚠ Embedding API not configured - skipping RAG")
-                print(f"  Configure embedding_endpoint and embedding_api_key in settings")
+                logger.warning(f"⚠ Embedding API not configured - skipping RAG")
+                logger.warning(f"  Configure embedding_endpoint and embedding_api_key in settings")
                 rag_status = {
                     "enabled": False,
                     "reason": "Embedding API not configured"
                 }
             else:
-                print(f"\n{'─'*60}")
-                print(f"Building RAG context from {len(rag_documents)} total document(s)...")
-                print(f"Using embedding model: {emb_model}")
+                logger.info("─"*60)
+                logger.info(f"Building RAG context from {len(rag_documents)} total document(s)...")
+                logger.info(f"Using embedding model: {emb_model}")
                 
                 # Call enhanced RAG pipeline with status tracking
                 rag_context, chunks_used, rag_status = await rag_memory.build_rag_context(
@@ -306,21 +276,19 @@ async def chat_with_case(
                 )
                 
                 if rag_context:
-                    print(f"✓ RAG: Retrieved {chunks_used} relevant chunks")
-                    print(f"  Context length: {len(rag_context)} characters")
+                    logger.info(f"✓ RAG: Retrieved {chunks_used} relevant chunks")
+                    logger.info(f"  Context length: {len(rag_context)} characters")
                 else:
-                    print(f"✗ RAG: No context generated (empty result)")
+                    logger.warning(f"✗ RAG: No context generated (empty result)")
         else:
-            print(f"\n⚠ No documents available for RAG processing")
+            logger.info(f"⚠ No documents available for RAG processing")
             rag_status = {
                 "enabled": False,
                 "reason": "No documents available"
             }
             
     except Exception as e:
-        print(f"✗ Error in RAG processing: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"✗ Error in RAG processing: {e}", exc_info=True)
         # Continue without RAG context if there's an error
         rag_context = ""
         chunks_used = 0
@@ -330,7 +298,7 @@ async def chat_with_case(
             "error_type": type(e).__name__
         }
     
-    print(f"--- RAG PROCESSING END ---\n")
+    logger.info("RAG PROCESSING END")
     
     # Determine model to use
     model_to_use = chat_request.model
@@ -415,7 +383,7 @@ Provide accurate, professional responses based on this case data. If asked about
             
             if response.status_code != 200:
                 error_detail = response.text
-                print(f"LLM API Error: {error_detail}")
+                logger.error(f"LLM API Error: {error_detail}")
                 raise HTTPException(
                     status_code=502,
                     detail=f"LLM API error ({response.status_code}): {error_detail}"

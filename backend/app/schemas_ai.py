@@ -9,7 +9,7 @@ class Personae(BaseModel):
 
 class DebugStep(BaseModel):
     step_name: str
-    model_used: str
+    used_model: str
     prompt_sent: str
     raw_response: str
     content_snippet: str

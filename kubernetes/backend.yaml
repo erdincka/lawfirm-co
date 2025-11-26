@@ -21,6 +21,10 @@ spec:
         env:
         - name: DATABASE_URL
           value: "postgresql://user:password@db:5432/lawfirm"
+        - name: DEBUG
+          value: "true"
+        - name: LOG_FORMAT
+          value: "text"
 ---
 apiVersion: v1
 kind: Service

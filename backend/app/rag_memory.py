@@ -40,7 +40,6 @@ class RAGStatus:
             "details": details
         }
         logger.info(f"[RAG] Phase {phase.value} started: {details}")
-        print(f"  ▶ {phase.value.upper()}: {details}")
     
     def log_phase_success(self, phase: RAGPhase, details: str = "", metrics: Dict = None):
         """Log successful completion of a phase"""
@@ -54,7 +53,6 @@ class RAGStatus:
                 "metrics": metrics or {}
             })
             logger.info(f"[RAG] Phase {phase.value} completed: {details} ({elapsed:.2f}s)")
-            print(f"  ✓ {phase.value.upper()}: {details} ({elapsed:.2f}s)")
     
     def log_phase_error(self, phase: RAGPhase, error: Exception, details: str = ""):
         """Log phase error"""
@@ -74,7 +72,6 @@ class RAGStatus:
             })
         
         logger.error(f"[RAG] Phase {phase.value} failed: {error} - {details}")
-        print(f"  ✗ {phase.value.upper()} FAILED: {error}")
     
     def log_warning(self, phase: RAGPhase, message: str):
         """Log a warning"""
@@ -85,7 +82,6 @@ class RAGStatus:
         }
         self.warnings.append(warning_info)
         logger.warning(f"[RAG] Warning in {phase.value}: {message}")
-        print(f"  ⚠ {phase.value.upper()}: {message}")
     
     def get_summary(self) -> Dict:
         """Get summary of RAG pipeline execution"""
@@ -141,11 +137,11 @@ async def generate_embeddings(
         embeddings_url = f"{base_url}/embeddings"
         
         if status:
-            print(f"      Endpoint: {embeddings_url}")
-            print(f"      Model: {model}")
-            print(f"      Texts to embed: {len(texts)}")
+            logger.debug(f"Endpoint: {embeddings_url}")
+            logger.debug(f"Model: {model}")
+            logger.debug(f"Texts to embed: {len(texts)}")
             if input_type:
-                print(f"      Input type: {input_type}")
+                logger.debug(f"Input type: {input_type}")
         
         # Build request payload
         payload = {
@@ -294,14 +290,14 @@ def extract_text_from_content(
                 
                 num_pages = len(reader.pages)
                 if status:
-                    print(f"      PDF has {num_pages} page(s)")
+                    logger.debug(f"PDF has {num_pages} page(s)")
                 
                 text_parts = []
                 for i, page in enumerate(reader.pages):
                     page_text = page.extract_text()
                     text_parts.append(page_text)
                     if status and (i + 1) % 10 == 0:
-                        print(f"      Processed {i + 1}/{num_pages} pages")
+                        logger.debug(f"Processed {i + 1}/{num_pages} pages")
                 
                 extracted = '\n'.join(text_parts)
                 if status:
@@ -477,7 +473,7 @@ class InMemoryRAG:
                 doc_id = doc.get('id', 'unknown')
                 
                 if self.status:
-                    print(f"    [{idx}/{len(documents)}] Processing: {doc_title}")
+                    logger.debug(f"[{idx}/{len(documents)}] Processing: {doc_title}")
                 
                 try:
                     # Extract text from document
@@ -497,7 +493,7 @@ class InMemoryRAG:
                         continue
                     
                     if self.status:
-                        print(f"        Extracted {len(text)} characters")
+                        logger.debug(f"Extracted {len(text)} characters")
                     
                     # Chunk the text
                     chunks = chunk_text(text, status=self.status)
@@ -512,7 +508,7 @@ class InMemoryRAG:
                         continue
                     
                     if self.status:
-                        print(f"        Created {len(chunks)} chunk(s)")
+                        logger.debug(f"Created {len(chunks)} chunk(s)")
                     
                     # Store chunks with metadata
                     for chunk in chunks:
@@ -553,7 +549,7 @@ class InMemoryRAG:
             
             # Generate embeddings for all chunks using API
             if self.status:
-                print(f"\n    Generating embeddings for {len(all_chunks)} chunks...")
+                logger.debug(f"Generating embeddings for {len(all_chunks)} chunks...")
             
             self.chunks = all_chunks
             self.metadata = all_metadata
@@ -596,7 +592,7 @@ class InMemoryRAG:
                 return []
             
             if self.status:
-                print(f"      Searching across {len(self.chunks)} chunks")
+                logger.debug(f"Searching across {len(self.chunks)} chunks")
             
             # Generate query embedding using API
             query_embeddings = await generate_embeddings(
@@ -619,7 +615,7 @@ class InMemoryRAG:
             similarities.sort(key=lambda x: x[1], reverse=True)
             
             if self.status:
-                print(f"      Similarity scores range: {similarities[0][1]:.3f} to {similarities[-1][1]:.3f}")
+                logger.debug(f"Similarity scores range: {similarities[0][1]:.3f} to {similarities[-1][1]:.3f}")
             
             # Get top-k results
             results = []
@@ -674,14 +670,14 @@ async def build_rag_context(
     # Initialize status tracking
     status = RAGStatus()
     
-    print(f"\n{'='*60}")
-    print(f"RAG PIPELINE EXECUTION")
-    print(f"{'='*60}")
-    print(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-    print(f"Documents: {len(documents)}")
-    print(f"Embedding Model: {model}")
-    print(f"Top-K: {top_k}")
-    print(f"{'='*60}\n")
+    logger.info("="*60)
+    logger.info("RAG PIPELINE EXECUTION")
+    logger.info("="*60)
+    logger.info(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+    logger.info(f"Documents: {len(documents)}")
+    logger.info(f"Embedding Model: {model}")
+    logger.info(f"Top-K: {top_k}")
+    logger.info("="*60)
     
     try:
         if not documents:
@@ -692,8 +688,8 @@ async def build_rag_context(
         rag = InMemoryRAG(endpoint, api_key, model, status)
         
         # Index documents
-        print("PHASE 1: Document Indexing")
-        print("-" * 60)
+        logger.info("PHASE 1: Document Indexing")
+        logger.info("-" * 60)
         num_chunks, failed_docs = await rag.index_documents(documents)
         
         if num_chunks == 0:
@@ -708,8 +704,8 @@ async def build_rag_context(
             return "", 0, status.get_summary()
         
         # Retrieve relevant chunks
-        print(f"\nPHASE 2: Similarity Search")
-        print("-" * 60)
+        logger.info("PHASE 2: Similarity Search")
+        logger.info("-" * 60)
         results = await rag.retrieve(query, top_k=top_k)
         
         if not results:
@@ -717,8 +713,8 @@ async def build_rag_context(
             return "", 0, status.get_summary()
         
         # Build context string
-        print(f"\nPHASE 3: Context Building")
-        print("-" * 60)
+        logger.info("PHASE 3: Context Building")
+        logger.info("-" * 60)
         phase = RAGPhase.CONTEXT_BUILDING
         status.log_phase_start(phase, f"Building context from {len(results)} chunks")
         
@@ -736,7 +732,7 @@ async def build_rag_context(
                 total_chars += len(chunk)
                 
                 if status:
-                    print(f"  [{i}] {doc_title}: {len(chunk)} chars (score: {score:.3f})")
+                    logger.debug(f"[{i}] {doc_title}: {len(chunk)} chars (score: {score:.3f})")
             
             context = "\n".join(context_parts)
             
@@ -751,19 +747,19 @@ async def build_rag_context(
             )
             
             # Print summary
-            print(f"\n{'='*60}")
-            print(f"RAG PIPELINE SUMMARY")
-            print(f"{'='*60}")
+            logger.info("="*60)
+            logger.info("RAG PIPELINE SUMMARY")
+            logger.info("="*60)
             summary = status.get_summary()
-            print(f"Total Time: {summary['total_elapsed_seconds']:.2f}s")
-            print(f"Success: {summary['success']}")
-            print(f"Errors: {len(summary['errors'])}")
-            print(f"Warnings: {len(summary['warnings'])}")
-            print(f"Chunks Retrieved: {len(results)}")
-            print(f"Context Size: {len(context)} characters")
+            logger.info(f"Total Time: {summary['total_elapsed_seconds']:.2f}s")
+            logger.info(f"Success: {summary['success']}")
+            logger.info(f"Errors: {len(summary['errors'])}")
+            logger.info(f"Warnings: {len(summary['warnings'])}")
+            logger.info(f"Chunks Retrieved: {len(results)}")
+            logger.info(f"Context Size: {len(context)} characters")
             if failed_docs:
-                print(f"Failed Documents: {', '.join(failed_docs)}")
-            print(f"{'='*60}\n")
+                logger.info(f"Failed Documents: {', '.join(failed_docs)}")
+            logger.info("="*60)
             
             return context, len(results), summary
             
@@ -772,11 +768,11 @@ async def build_rag_context(
             raise
             
     except Exception as e:
-        print(f"\n{'='*60}")
-        print(f"RAG PIPELINE FAILED")
-        print(f"{'='*60}")
-        print(f"Error: {str(e)}")
-        print(f"{'='*60}\n")
+        logger.error("="*60)
+        logger.error("RAG PIPELINE FAILED")
+        logger.error("="*60)
+        logger.error(f"Error: {str(e)}")
+        logger.error("="*60)
         
         # Log the error if not already logged
         if not status.errors:
