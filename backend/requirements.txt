@@ -13,3 +13,5 @@ pypdf==4.0.1
 striprtf==0.0.26
 reportlab==4.0.9
 
+# Kubernetes
+kubernetes==34.1.0

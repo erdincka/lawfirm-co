@@ -22,11 +22,11 @@ backend:
     targetPort: 8000
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "1000m"
+      memory: "1Gi"
     limits:
-      cpu: "500m"
-      memory: "256Mi"
+      cpu: "2000m"
+      memory: "2Gi"
   env:
     - name: DEBUG
       value: "false"
@@ -60,16 +60,15 @@ frontend:
     targetPort: 3000
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "1000m"
+      memory: "1Gi"
     limits:
-      cpu: "500m"
-      memory: "256Mi"
+      cpu: "2000m"
+      memory: "2Gi"
   env: {}
 
 db:
   persistence:
-    enabled: true          # Set to false to disable PVC creation
-    size: "1Gi"            # Default storage request
-    storageClass: ""       # Optional storage class (leave empty for default)
-    
+    enabled: true # Set to false to disable PVC creation
+    size: "1Gi" # Default storage request
+    storageClass: "" # Optional storage class (leave empty for default)

@@ -14,13 +14,21 @@ spec:
         app: frontend
     spec:
       containers:
-      - name: frontend
-        image: erdincka/lawfirm-frontend:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: NEXT_PUBLIC_API_URL
-          value: "http://localhost:8000"
+        - name: frontend
+          image: erdincka/lawfirm-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://localhost:8000"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
 ---
 apiVersion: v1
 kind: Service
@@ -30,5 +38,5 @@ spec:
   selector:
     app: frontend
   ports:
-  - port: 3000
-    targetPort: 3000
+    - port: 3000
+      targetPort: 3000

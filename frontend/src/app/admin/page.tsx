@@ -6,10 +6,10 @@ import Link from 'next/link';
 export default function AdminPage() {
     const [tables, setTables] = useState<string[]>([]);
     const [selectedTable, setSelectedTable] = useState<string | null>(null);
-    const [records, setRecords] = useState<any[]>([]);
+    const [records, setRecords] = useState<never[]>([]);
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, per_page: 10, total: 0, total_pages: 0 });
-    const [selectedRecord, setSelectedRecord] = useState<any>(null);
+    const [selectedRecord, setSelectedRecord] = useState<string | null>(null);
 
     // LLM Settings state
     const [endpoint, setEndpoint] = useState('');
@@ -26,6 +26,7 @@ export default function AdminPage() {
     const [embeddingModel, setEmbeddingModel] = useState('');
     const [detectingEmbeddingModels, setDetectingEmbeddingModels] = useState(false);
     const [availableEmbeddingModels, setAvailableEmbeddingModels] = useState<string[]>([]);
+    const [inferenceServices, setInferenceServices] = useState([]);
 
     useEffect(() => {
         fetch('/api/admin/tables')
@@ -56,6 +57,17 @@ export default function AdminPage() {
                 if (embMod) setEmbeddingModel(embMod.value);
             })
             .catch((err) => console.error('Failed to fetch settings', err));
+
+        // Load existing inferenceServices - PCAI
+        fetch(`/api/admin/endpoints`)
+            .then((res) => res.json())
+            .then((data) => {
+                setInferenceServices(data);
+            })
+            .catch((err) => {
+                console.error('Failed to fetch llm endpoints', err);
+                setLoading(false);
+            });
     }, []);
 
     useEffect(() => {
@@ -163,8 +175,6 @@ export default function AdminPage() {
         }
     };
 
-
-
     const handleSaveSettings = async (e: React.FormEvent) => {
         e.preventDefault();
         setSavingSettings(true);
@@ -240,18 +250,59 @@ export default function AdminPage() {
             {/* LLM Configuration Section */}
             <section className="mb-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                 <h2 className="text-xl font-semibold mb-4 text-white">AI/LLM Configuration</h2>
+                <p className="text-sm text-slate-400 mb-4">Configure the LLM API for natural language Q&A.</p>
                 <form onSubmit={handleSaveSettings} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">LLM Endpoint URL</label>
-                        <input
-                            type="url"
-                            value={endpoint}
-                            onChange={(e) => setEndpoint(e.target.value)}
-                            placeholder="https://api.openai.com/v1"
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
-                            required
-                        />
-                    </div>
+
+                    {inferenceServices && inferenceServices.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label htmlFor="endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
+                                    Existing LLM Endpoint
+                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <select
+                                        id="endpoint-select"
+                                        value={endpoint}
+                                        onChange={(e) => setEndpoint(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
+                                    >
+                                        {inferenceServices.map((svc, idx) => (
+                                            <option
+                                                key={idx}
+                                                value={svc["status"]["url"] || svc["metadata"]["name"]}
+                                            >
+                                                {svc["status"]["url"] || svc["metadata"]["name"]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Custom LLM Endpoint</label>
+                                <input
+                                    type="url"
+                                    value={endpoint}
+                                    onChange={(e) => setEndpoint(e.target.value)}
+                                    placeholder="https://api.openai.com/v1"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
+                                    required
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">LLM Endpoint</label>
+                            <input
+                                type="url"
+                                value={endpoint}
+                                onChange={(e) => setEndpoint(e.target.value)}
+                                placeholder="https://api.openai.com/v1"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
+                                required
+                            />
+                        </div>
+                    )}
+                    <p className="text-sm text-slate-400 mb-4">Using: {endpoint}</p>
 
                     <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">API Token</label>
@@ -306,17 +357,57 @@ export default function AdminPage() {
                         <p className="text-sm text-slate-400 mb-4">Configure the embedding API for document search and retrieval.</p>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Embedding Endpoint URL</label>
-                        <input
-                            type="url"
-                            value={embeddingEndpoint}
-                            onChange={(e) => setEmbeddingEndpoint(e.target.value)}
-                            placeholder="https://api.openai.com (or same as LLM endpoint)"
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
-                        />
-                        <p className="text-xs text-slate-500 mt-1">Can be the same as LLM endpoint if it supports embeddings.</p>
-                    </div>
+                    {inferenceServices && inferenceServices.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                            <div>
+                                <label htmlFor="endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
+                                    Existing LLM Endpoint
+                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <select
+                                        id="endpoint-select"
+                                        value={embeddingEndpoint}
+                                        onChange={(e) => setEmbeddingEndpoint(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
+                                    >
+                                        {inferenceServices.map((svc, idx) => (
+                                            <option
+                                                key={idx}
+                                                value={svc["status"]["url"] || svc["metadata"]["name"]}
+                                            >
+                                                {svc["status"]["url"] || svc["metadata"]["name"]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Embedding Endpoint URL</label>
+                                <input
+                                    type="url"
+                                    value={embeddingEndpoint}
+                                    onChange={(e) => setEmbeddingEndpoint(e.target.value)}
+                                    placeholder="https://api.openai.com (or same as LLM endpoint)"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">Can be the same as LLM endpoint if it supports embeddings.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Embedding Endpoint URL</label>
+                            <input
+                                type="url"
+                                value={embeddingEndpoint}
+                                onChange={(e) => setEmbeddingEndpoint(e.target.value)}
+                                placeholder="https://api.openai.com (or same as LLM endpoint)"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">Can be the same as LLM endpoint if it supports embeddings.</p>
+                        </div>
+                    )}
+                    <p className="text-sm text-slate-400 mb-4">Using: {embeddingEndpoint}</p>
 
                     <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Embedding API Token</label>

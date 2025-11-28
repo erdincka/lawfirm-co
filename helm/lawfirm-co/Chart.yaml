@@ -2,5 +2,5 @@ apiVersion: v2
 name: lawfirm
 description: Helm chart for Law Firm Case Management System
 type: application
-version: 0.1.1
-appVersion: "1.0.0"
+version: 0.1.2
+appVersion: "1.0.1"

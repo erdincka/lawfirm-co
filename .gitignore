@@ -17,6 +17,7 @@ backend/**/__pycache__/
 backend/venv/
 backend/ENV/
 backend/env/
+.venv
 
 # IDE
 .vscode/

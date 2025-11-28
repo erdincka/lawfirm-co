@@ -14,17 +14,17 @@ spec:
         app: db
     spec:
       containers:
-      - name: db
-        image: postgres:18-alpine
-        ports:
-        - containerPort: 5432
-        env:
-        - name: POSTGRES_USER
-          value: "user"
-        - name: POSTGRES_PASSWORD
-          value: "password"
-        - name: POSTGRES_DB
-          value: "lawfirm"
+        - name: db
+          image: postgres:18-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "user"
+            - name: POSTGRES_PASSWORD
+              value: "password"
+            - name: POSTGRES_DB
+              value: "lawfirm"
 
 ---
 apiVersion: v1
@@ -35,5 +35,5 @@ spec:
   selector:
     app: db
   ports:
-  - port: 5432
-    targetPort: 5432
+    - port: 5432
+      targetPort: 5432

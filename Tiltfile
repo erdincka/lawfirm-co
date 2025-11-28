@@ -28,10 +28,11 @@ docker_build('erdincka/lawfirm-frontend',
 
 # Load Kubernetes manifests
 k8s_yaml([
-    # 'kubernetes/db-init-configmap.yaml',
     'kubernetes/db.yaml',
     'kubernetes/backend.yaml',
-    'kubernetes/frontend.yaml'
+    'kubernetes/frontend.yaml',
+    'kubernetes/roleBinding.yaml',
+    'kubernetes/serviceAccount.yaml'
 ])
 
 # Configure port forwards and resources
