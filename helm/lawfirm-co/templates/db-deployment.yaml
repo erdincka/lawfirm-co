@@ -36,11 +36,11 @@ spec:
       - name: db-data
         persistentVolumeClaim:
           claimName: {{ $fullName }}-db-pvc
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "1024m"
-          limits:
-            memory: "512Mi"
-            cpu: "2048m"
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "1024m"
+        limits:
+          memory: "512Mi"
+          cpu: "2048m"
           

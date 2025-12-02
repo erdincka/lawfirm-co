@@ -100,12 +100,8 @@ def get_table_records(
 
 @router.get("/endpoints", response_model=List[object])
 def get_endpoints():
-    if settings.is_production:
-        llm_endpoints = get_custom_object_list(
-            "inferenceservices", "serving.kserve.io", "v1beta1"
-        )
-    else:
-        llm_endpoints = get_all_services()
-
+    llm_endpoints = get_custom_object_list(
+        "inferenceservices", "serving.kserve.io", "v1beta1"
+    )
     logger.debug(llm_endpoints)
     return llm_endpoints

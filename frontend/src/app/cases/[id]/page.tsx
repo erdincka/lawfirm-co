@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useToast } from '@/context/ToastContext';
 
 interface Evidence {
     id: number;
@@ -62,6 +63,7 @@ export default function CasePage() {
     const [caseData, setCaseData] = useState<CaseDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const { showToast } = useToast();
 
     const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
@@ -116,11 +118,11 @@ export default function CasePage() {
                 } : null);
             } else {
                 console.error('Delete failed');
-                alert('Failed to delete document');
+                showToast('Failed to delete document', 'error');
             }
         } catch (err) {
             console.error('Error deleting document', err);
-            alert('Error deleting document');
+            showToast('Error deleting document', 'error');
         }
     };
 
@@ -159,11 +161,11 @@ export default function CasePage() {
                 setShowEvidenceForm(false);
             } else {
                 console.error('Failed to add evidence');
-                alert('Failed to add evidence');
+                showToast('Failed to add evidence', 'error');
             }
         } catch (err) {
             console.error('Error adding evidence', err);
-            alert('Error adding evidence');
+            showToast('Error adding evidence', 'error');
         } finally {
             setAddingEvidence(false);
         }
@@ -299,11 +301,11 @@ export default function CasePage() {
                 setDramatisResult(data.personae);
                 setDramatisDebugSteps(data.debug_steps || []);
             } else {
-                alert('Failed to generate Dramatis Personae');
+                showToast('Failed to generate Dramatis Personae', 'error');
             }
         } catch (err) {
             console.error(err);
-            alert('Error generating Dramatis Personae');
+            showToast('Error generating Dramatis Personae', 'error');
         } finally {
             setDramatisLoading(false);
         }
@@ -320,17 +322,17 @@ export default function CasePage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                alert('PDF saved to case documents successfully!');
+                showToast('PDF saved to case documents successfully!', 'success');
                 // Refresh case data to show new document
                 fetch(`/api/cases/${params.id}`)
                     .then(res => res.json())
                     .then(data => setCaseData(data));
             } else {
-                alert('Failed to save PDF');
+                showToast('Failed to save PDF', 'error');
             }
         } catch (err) {
             console.error(err);
-            alert('Error saving PDF');
+            showToast('Error saving PDF', 'error');
         } finally {
             setSavingPdf(false);
         }
@@ -372,11 +374,11 @@ export default function CasePage() {
                 } : null);
             } else {
                 console.error('Upload failed');
-                alert('Failed to upload video');
+                showToast('Failed to upload video', 'error');
             }
         } catch (err) {
             console.error('Error uploading video', err);
-            alert('Error uploading video');
+            showToast('Error uploading video', 'error');
         } finally {
             setVideoUploading(false);
             // Reset input if possible, but we don't have ref here easily, relying on re-render or manual clear if needed
@@ -403,11 +405,11 @@ export default function CasePage() {
                     setVideoChatHistory([]);
                 }
             } else {
-                alert('Failed to delete video');
+                showToast('Failed to delete video', 'error');
             }
         } catch (err) {
             console.error(err);
-            alert('Error deleting video');
+            showToast('Error deleting video', 'error');
         }
     };
 

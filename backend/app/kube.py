@@ -28,7 +28,10 @@ def get_custom_object_list(plural: str, group: str, version: str):
             version=version,
             resource_plural=plural,
         )
-        return v1CustomObjectList
+        response = v1CustomObjectList
+        items_list = response['items']  # Direct dict access to list
+        return [item for item in items_list]
+
     except client.exceptions.ApiException as e:
         logger.error(
             f"Exception for {plural} when calling CustomObjectsApi->get_namespaced_custom_object: {e}"

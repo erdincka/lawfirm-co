@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useToast } from '@/context/ToastContext';
 
 interface Lawyer {
     id: number;
@@ -15,6 +16,7 @@ export default function NewCasePage() {
     const router = useRouter();
     const [lawyers, setLawyers] = useState<Lawyer[]>([]);
     const [loading, setLoading] = useState(false);
+    const { showToast } = useToast();
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -55,10 +57,10 @@ export default function NewCasePage() {
                 router.push(`/cases/${newCase.id}`);
             } else {
                 const error = await res.json();
-                alert(`Error: ${error.detail || 'Failed to create case'}`);
+                showToast(`Error: ${error.detail || 'Failed to create case'}`, 'error');
             }
         } catch (err) {
-            alert('Error creating case');
+            showToast('Error creating case', 'error');
         } finally {
             setLoading(false);
         }
@@ -81,7 +83,7 @@ export default function NewCasePage() {
                             type="text"
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            placeholder="e.g., State vs. Smith - Fraud"
+                            placeholder="e.g., The King v. Smith - Fraud"
                             className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
                             required
                         />

@@ -32,4 +32,4 @@ spec:
 {{- end }}
           resources:
 {{ toYaml .Values.backend.resources | indent 12 }}
-      serviceAccountName: lawfirm-serviceAccount
+      serviceAccountName: {{ include "lawfirm.serviceAccount" . }}

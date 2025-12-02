@@ -50,9 +50,7 @@ async def detect_models(request: DetectModelsRequest):
         # Normalize endpoint
         base_url = request.endpoint.rstrip('/')
         if base_url.endswith('/v1'):
-            base_url = base_url[:-3]
-        elif '/v1/' in base_url:
-            base_url = base_url.split('/v1/')[0]
+            base_url = base_url.rstrip('/v1')
         
         models_url = f"{base_url}/v1/models"
         

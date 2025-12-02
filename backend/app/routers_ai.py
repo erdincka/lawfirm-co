@@ -34,10 +34,12 @@ def get_db():
     finally:
         db.close()
 
-async def call_llm(endpoint, api_key, messages, model="gpt-4"):
+async def call_llm(endpoint, api_key, messages, model="gpt-oss-20b"):
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Handle trailing slash
+        # Normalize endpoint
         base_url = endpoint.rstrip('/')
+        if base_url.endswith('/v1'):
+            base_url = base_url.rstrip('/v1')
         
         response = await client.post(
             f"{base_url}/v1/chat/completions",
@@ -63,13 +65,14 @@ async def call_llm(endpoint, api_key, messages, model="gpt-4"):
 async def get_available_models(llm_endpoint: str, api_key: str):
     """Query LLM endpoint for available models"""
     try:
-        llm_endpoint = llm_endpoint.rstrip('/v1')
-        if llm_endpoint.endswith("/"):
-            llm_endpoint = llm_endpoint[:-1]
+        # Normalize endpoint
+        base_url = llm_endpoint.rstrip('/')
+        if base_url.endswith('/v1'):
+            base_url = base_url.rstrip('/v1')
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                f"{llm_endpoint}/v1/models",
+                f"{base_url}/v1/models",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
@@ -99,7 +102,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
 
     # Determine model to use
     available_models = await get_available_models(llm_endpoint, api_key)
-    model_to_use = available_models[0] if available_models else "gpt-4"
+    model_to_use = available_models[0] if available_models else "gpt-oss-20b"
     logger.info(f"Using model: {model_to_use}")
 
     # 1. Extract from each document

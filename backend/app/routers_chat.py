@@ -21,29 +21,7 @@ def get_db():
     finally:
         db.close()
 
-def is_readable_format(content_type: str) -> bool:
-    """Check if content type is readable text format"""
-    if not content_type:
-        return False
-    
-    readable_types = [
-        'text/plain', 'text/html', 'text/xml', 'text/csv',
-        'application/json', 'application/xml', 'application/javascript',
-        'application/x-yaml', 'text/markdown', 'text/css'
-    ]
-    return content_type.lower() in readable_types
 
-def extract_text_content(file_data, content_type: str) -> str:
-    """Extract text from file data if it's a readable format"""
-    try:
-        # Convert memoryview to bytes if needed
-        if isinstance(file_data, memoryview):
-            file_data = file_data.tobytes()
-        
-        # Decode to text
-        return file_data.decode('utf-8', errors='ignore')
-    except Exception as e:
-        return f"[Error reading content: {str(e)}]"
 
 def build_case_context(case: models.Case) -> tuple[str, list[str]]:
     """
@@ -98,12 +76,14 @@ async def detect_vlm_capability(llm_endpoint: str, api_key: str, model: str) -> 
 async def get_available_models(llm_endpoint: str, api_key: str):
     """Query LLM endpoint for available models"""
     try:
-        if llm_endpoint.endswith("/"):
-            llm_endpoint = llm_endpoint[:-1]
+        # Normalize endpoint
+        base_url = llm_endpoint.rstrip('/')
+        if base_url.endswith('/v1'):
+            base_url = base_url.rstrip('/v1')
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                f"{llm_endpoint}/v1/models",
+                f"{base_url}/v1/models",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
@@ -112,6 +92,8 @@ async def get_available_models(llm_endpoint: str, api_key: str):
             
             if response.status_code == 200:
                 result = response.json()
+                logger.debug("Found models:")
+                logger.debug(result)
                 # Extract model IDs from response
                 if "data" in result:
                     return [model["id"] for model in result["data"]]
@@ -135,7 +117,7 @@ async def list_available_models(db: Session = Depends(get_db)):
     
     if not models:
         # Fallback to common models if endpoint doesn't support /v1/models
-        models = ["gpt-4", "gpt-3.5-turbo", "gpt-4-turbo"]
+        models = ["gpt-oss-20b"]
     
     return {
         "models": models,
@@ -307,7 +289,7 @@ async def chat_with_case(
         if available_models:
             model_to_use = available_models[0]
         else:
-            model_to_use = "gpt-4"
+            model_to_use = "gpt-oss-20b"
     
     # Detect if model supports vision
     is_vlm = await detect_vlm_capability(llm_endpoint, api_key, model_to_use)
@@ -366,9 +348,14 @@ Provide accurate, professional responses based on this case data. If asked about
     
     # Call LLM API
     try:
+        # Normalize endpoint
+        base_url = llm_endpoint.rstrip('/')
+        if base_url.endswith('/v1'):
+            base_url = base_url.rstrip('/v1')
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{llm_endpoint}/v1/chat/completions",
+                f"{base_url}/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"

@@ -128,13 +128,10 @@ async def generate_embeddings(
     try:
         # Normalize endpoint
         base_url = endpoint.rstrip('/')
-        if not base_url.endswith('/v1'):
-            if '/v1/' in base_url:
-                base_url = base_url.split('/v1/')[0] + '/v1'
-            else:
-                base_url = f"{base_url}/v1"
+        if base_url.endswith('/v1'):
+            base_url = base_url.rstrip('/v1')
         
-        embeddings_url = f"{base_url}/embeddings"
+        embeddings_url = f"{base_url}/v1/embeddings"
         
         if status:
             logger.debug(f"Endpoint: {embeddings_url}")

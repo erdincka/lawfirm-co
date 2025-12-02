@@ -15,30 +15,30 @@ echo "📦 Building backend..."
 cd backend
 
 # docker buildx build --platform linux/amd64,linux/arm64 -t erdincka/lawfirm-backend:latest --push .
-docker buildx build --platform linux/amd64 -f Dockerfile.prod -t ${REGISTRY}-backend:${VERSION} --push .
-docker tag ${REGISTRY}-backend:${VERSION} ${REGISTRY}-backend:latest
+docker buildx build --platform linux/amd64 -f Dockerfile.prod -t ${REGISTRY}-backend:${VERSION} -t ${REGISTRY}-backend:latest --push .
+# docker tag ${REGISTRY}-backend:${VERSION} ${REGISTRY}-backend:latest
 
 # Build frontend
 echo "📦 Building frontend..."
 cd ../frontend
-docker buildx build --platform linux/amd64 -f Dockerfile.prod -t ${REGISTRY}-frontend:${VERSION} --push .
-docker tag ${REGISTRY}-frontend:${VERSION} ${REGISTRY}-frontend:latest
+docker buildx build --platform linux/amd64 -f Dockerfile.prod -t ${REGISTRY}-frontend:${VERSION} -t ${REGISTRY}-frontend:latest --push .
+# docker tag ${REGISTRY}-frontend:${VERSION} ${REGISTRY}-frontend:latest
 
 cd ..
 
-echo "✅ Build complete!"
-echo ""
-echo "🚀 Pushing images to Docker Hub..."
+# echo "✅ Build and push complete!"
+# echo ""
+# echo "🚀 Pushing images to Docker Hub..."
 
-# Push backend
-echo "⬆️  Pushing backend..."
-# docker push ${REGISTRY}-backend:${VERSION}
-docker push ${REGISTRY}-backend:latest
+# # Push backend
+# echo "⬆️  Pushing backend..."
+# # docker push ${REGISTRY}-backend:${VERSION}
+# docker push ${REGISTRY}-backend:latest
 
-# Push frontend
-echo "⬆️  Pushing frontend..."
-# docker push ${REGISTRY}-frontend:${VERSION}
-docker push ${REGISTRY}-frontend:latest
+# # Push frontend
+# echo "⬆️  Pushing frontend..."
+# # docker push ${REGISTRY}-frontend:${VERSION}
+# docker push ${REGISTRY}-frontend:latest
 
 echo ""
 echo "✅ All images pushed successfully!"

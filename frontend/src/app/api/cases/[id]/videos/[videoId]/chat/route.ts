@@ -5,8 +5,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string; videoId: string } }
+    props: { params: Promise<{ id: string; videoId: string }> }
 ) {
+    const params = await props.params;
     try {
         const body = await request.json();
         const backendUrl = process.env.BACKEND_URL || 'http://backend:8000';

@@ -1,11 +1,11 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: lawfirm-serviceAccount-rbac
+  name: {{ include "lawfirm.fullname" . }}-rbac
 subjects:
   - kind: ServiceAccount
     # Reference to upper's `metadata.name`
-    name: lawfirm-serviceAccount
+    name: {{ include "lawfirm.serviceAccount" . }}
     # Reference to upper's `metadata.namespace`
     namespace: {{ .Release.Namespace }}
 roleRef:

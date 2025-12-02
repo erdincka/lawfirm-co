@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/context/ToastContext';
 
 export default function AdminPage() {
     const [tables, setTables] = useState<string[]>([]);
@@ -16,8 +17,8 @@ export default function AdminPage() {
     const [apiKey, setApiKey] = useState('');
     const [llmModel, setLlmModel] = useState('');
     const [savingSettings, setSavingSettings] = useState(false);
-    const [settingsMessage, setSettingsMessage] = useState('');
     const [detectingLlmModels, setDetectingLlmModels] = useState(false);
+    const { showToast } = useToast();
     const [availableLlmModels, setAvailableLlmModels] = useState<string[]>([]);
 
     // Embedding Settings state
@@ -62,7 +63,9 @@ export default function AdminPage() {
         fetch(`/api/admin/endpoints`)
             .then((res) => res.json())
             .then((data) => {
-                setInferenceServices(data);
+                // Filter out items without status.url and map to the full object
+                const validServices = data.filter((endpoint: any) => endpoint?.status?.url);
+                setInferenceServices(validServices);
             })
             .catch((err) => {
                 console.error('Failed to fetch llm endpoints', err);
@@ -100,7 +103,7 @@ export default function AdminPage() {
 
     const handleDetectLlmModels = async () => {
         if (!endpoint) {
-            alert('Please enter an LLM endpoint first');
+            showToast('Please enter an LLM endpoint first', 'warning');
             return;
         }
 
@@ -119,10 +122,10 @@ export default function AdminPage() {
                     setLlmModel(data.models[0]);
                 }
             } else {
-                alert(`Could not detect models: ${data.error || 'No models found'}`);
+                showToast(`Could not detect models: ${data.error || 'No models found'}`, 'error');
             }
         } catch (error) {
-            alert(`Error detecting models: ${error}`);
+            showToast(`Error detecting models: ${error}`, 'error');
         } finally {
             setDetectingLlmModels(false);
         }
@@ -130,7 +133,7 @@ export default function AdminPage() {
 
     const handleDetectEmbeddingModels = async () => {
         if (!embeddingEndpoint) {
-            alert('Please enter an Embedding endpoint first');
+            showToast('Please enter an Embedding endpoint first', 'warning');
             return;
         }
 
@@ -166,10 +169,10 @@ export default function AdminPage() {
                     }
                 }
             } else {
-                alert(`Could not detect embedding models: ${data.error || 'No models found'}`);
+                showToast(`Could not detect embedding models: ${data.error || 'No models found'}`, 'error');
             }
         } catch (error) {
-            alert(`Error detecting embedding models: ${error}`);
+            showToast(`Error detecting embedding models: ${error}`, 'error');
         } finally {
             setDetectingEmbeddingModels(false);
         }
@@ -178,7 +181,6 @@ export default function AdminPage() {
     const handleSaveSettings = async (e: React.FormEvent) => {
         e.preventDefault();
         setSavingSettings(true);
-        setSettingsMessage('');
 
         try {
             // Save LLM settings
@@ -229,10 +231,10 @@ export default function AdminPage() {
                 });
             }
 
-            setSettingsMessage('Settings saved successfully!');
+            showToast('Settings saved successfully!', 'success');
         } catch (err) {
             console.error('Failed to save settings', err);
-            setSettingsMessage('Error saving settings.');
+            showToast('Error saving settings.', 'error');
         } finally {
             setSavingSettings(false);
         }
@@ -256,22 +258,22 @@ export default function AdminPage() {
                     {inferenceServices && inferenceServices.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label htmlFor="endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
+                                <label htmlFor="llm-endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
                                     Existing LLM Endpoint
                                 </label>
                                 <div className="flex justify-between items-center mb-2">
                                     <select
-                                        id="endpoint-select"
+                                        id="llm-endpoint-select"
                                         value={endpoint || undefined}
                                         onChange={(e) => setEndpoint(e.target.value)}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
                                     >
-                                        {inferenceServices.map((svc, idx) => (
+                                        {inferenceServices.map((svc: any, idx) => (
                                             <option
                                                 key={idx}
-                                                value={svc["status"]["url"] || svc["metadata"]["name"]}
+                                                value={svc.status.url}
                                             >
-                                                {svc["status"]["url"] || svc["metadata"]["name"]}
+                                                {svc.status.url}
                                             </option>
                                         ))}
                                     </select>
@@ -283,7 +285,7 @@ export default function AdminPage() {
                                     type="url"
                                     value={endpoint}
                                     onChange={(e) => setEndpoint(e.target.value)}
-                                    placeholder="https://api.openai.com/v1"
+                                    placeholder="https://api.openai.com/v1/"
                                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
                                     required
                                 />
@@ -296,7 +298,7 @@ export default function AdminPage() {
                                 type="url"
                                 value={endpoint}
                                 onChange={(e) => setEndpoint(e.target.value)}
-                                placeholder="https://api.openai.com/v1"
+                                placeholder="https://api.openai.com/v1/"
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500 transition"
                                 required
                             />
@@ -344,7 +346,7 @@ export default function AdminPage() {
                                 type="text"
                                 value={llmModel}
                                 onChange={(e) => setLlmModel(e.target.value)}
-                                placeholder="e.g., gpt-4 (or click Detect Models)"
+                                placeholder="e.g., gpt-oss-20b (or click Detect Models)"
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
                             />
                         )}
@@ -361,22 +363,22 @@ export default function AdminPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                             <div>
-                                <label htmlFor="endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
-                                    Existing LLM Endpoint
+                                <label htmlFor="embedding-endpoint-select" className="block text-sm font-medium text-slate-300 mb-2">
+                                    Existing Embedding Endpoint
                                 </label>
                                 <div className="flex justify-between items-center mb-2">
                                     <select
-                                        id="endpoint-select"
-                                        value={embeddingEndpoint}
+                                        id="embedding-endpoint-select"
+                                        value={embeddingEndpoint || undefined}
                                         onChange={(e) => setEmbeddingEndpoint(e.target.value)}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
                                     >
-                                        {inferenceServices.map((svc, idx) => (
+                                        {inferenceServices.map((svc: any, idx) => (
                                             <option
                                                 key={idx}
-                                                value={svc["status"]["url"] || svc["metadata"]["name"]}
+                                                value={svc.status.url}
                                             >
-                                                {svc["status"]["url"] || svc["metadata"]["name"]}
+                                                {svc.status.url}
                                             </option>
                                         ))}
                                     </select>
@@ -458,11 +460,7 @@ export default function AdminPage() {
                         </p>
                     </div>
 
-                    {settingsMessage && (
-                        <div className={`p-3 rounded-lg text-sm ${settingsMessage.includes('Error') ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>
-                            {settingsMessage}
-                        </div>
-                    )}
+
 
                     <button
                         type="submit"

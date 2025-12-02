@@ -47,48 +47,7 @@ def video_to_data_url(path: str) -> str:
     b64 = base64.b64encode(pathlib.Path(path).read_bytes()).decode("utf-8")
     return f"data:{mime};base64,{b64}"
 
-def extract_frames(video_path, max_frames=5):
-    """Extract key frames from video (legacy fallback)"""
-    frames = []
-    try:
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            logger.error(f"Could not open video: {video_path}")
-            return []
-        
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames <= 0:
-            # Fallback for streams or unknown length
-            total_frames = 100 
-            
-        # Take frames at intervals
-        step = max(1, total_frames // max_frames)
-        
-        count = 0
-        for i in range(0, total_frames, step):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
-            ret, frame = cap.read()
-            if ret:
-                # Resize to reduce payload size (max 512px)
-                h, w = frame.shape[:2]
-                if h > 512 or w > 512:
-                    scale = 512 / max(h, w)
-                    frame = cv2.resize(frame, (int(w*scale), int(h*scale)))
-                
-                # Compress to JPEG
-                _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-                b64 = base64.b64encode(buffer).decode('utf-8')
-                frames.append(f"data:image/jpeg;base64,{b64}")
-                
-                count += 1
-                if count >= max_frames:
-                    break
-        
-        cap.release()
-    except Exception as e:
-        logger.error(f"Error extracting frames: {e}")
-        
-    return frames
+
 
 @router.post("/{case_id}/videos", response_model=schemas.CaseVideo)
 async def upload_video(
@@ -228,7 +187,7 @@ async def chat_with_video(
         # Make the LLM call
         import httpx
         async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for video processing
-            base_url = llm_endpoint.rstrip('/v1').rstrip('/')
+            base_url = llm_endpoint.rstrip('/').rstrip('/v1')
             
             payload = {
                 "model": model,
@@ -246,10 +205,10 @@ async def chat_with_video(
                 }
             }
             
-            logger.info(f"Sending to: {base_url.rstrip('/v1')}/v1/chat/completions")
+            logger.info(f"Sending to: {base_url}/v1/chat/completions")
             
             response = await client.post(
-                f"{base_url.rstrip('/v1')}/v1/chat/completions",
+                f"{base_url}/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
