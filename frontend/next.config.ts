@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     ]
   },
   reactCompiler: true,
+  experimental: {
+    middlewareClientMaxBodySize: '30mb', // or choose a larger size string or bytes number
+  }
 };
 
 export default nextConfig;

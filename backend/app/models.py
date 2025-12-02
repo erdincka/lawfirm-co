@@ -45,6 +45,7 @@ class Case(Base):
     
     evidence = relationship("Evidence", back_populates="case")
     documents = relationship("Document", back_populates="case")
+    videos = relationship("CaseVideo", back_populates="case")
 
 class Evidence(Base):
     __tablename__ = "evidence"
@@ -68,3 +69,16 @@ class Document(Base):
     
     case_id = Column(Integer, ForeignKey("cases.id"))
     case = relationship("Case", back_populates="documents")
+
+class CaseVideo(Base):
+    __tablename__ = "case_videos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String)
+    file_path = Column(String) # Local path to the video file
+    processed = Column(Integer, default=0) # 0=No, 1=Yes
+    summary = Column(Text, nullable=True)
+    created_date = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    case_id = Column(Integer, ForeignKey("cases.id"))
+    case = relationship("Case", back_populates="videos")

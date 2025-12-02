@@ -64,6 +64,24 @@ class Case(CaseBase):
     lead_attorney: Optional[Lawyer] = None
     evidence: List[Evidence] = []
     documents: List[Document] = []
+    videos: List["CaseVideo"] = []
+
+    class Config:
+        from_attributes = True
+
+class CaseVideoBase(BaseModel):
+    filename: str
+    summary: Optional[str] = None
+
+class CaseVideoCreate(CaseVideoBase):
+    pass
+
+class CaseVideo(CaseVideoBase):
+    id: int
+    case_id: int
+    file_path: str
+    processed: int
+    created_date: datetime
 
     class Config:
         from_attributes = True

@@ -63,6 +63,7 @@ async def call_llm(endpoint, api_key, messages, model="gpt-4"):
 async def get_available_models(llm_endpoint: str, api_key: str):
     """Query LLM endpoint for available models"""
     try:
+        llm_endpoint = llm_endpoint.rstrip('/v1')
         if llm_endpoint.endswith("/"):
             llm_endpoint = llm_endpoint[:-1]
         

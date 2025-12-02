@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
-from . import models, schemas, database, seed, routers_admin, routers_settings, routers_chat, routers_ai
+from . import models, schemas, database, seed, routers_admin, routers_settings, routers_chat, routers_ai, routers_video
 from .database import engine
 from .core import get_settings, get_cors_config, setup_logging, get_logger, SECURITY_HEADERS
 
@@ -117,6 +117,7 @@ app.include_router(routers_admin.router)
 app.include_router(routers_settings.router)
 app.include_router(routers_chat.router)
 app.include_router(routers_ai.router)
+app.include_router(routers_video.router)
 
 
 # -----------------------------------------------------------------

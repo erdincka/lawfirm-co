@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Evidence {
     id: number;
@@ -16,6 +18,14 @@ interface Document {
     id: number;
     title: string;
     content: string;
+    created_date: string;
+}
+
+interface CaseVideo {
+    id: number;
+    filename: string;
+    file_path: string;
+    processed: number;
     created_date: string;
 }
 
@@ -44,6 +54,7 @@ interface CaseDetail {
     lead_attorney: Lawyer;
     evidence: Evidence[];
     documents: Document[];
+    videos: CaseVideo[];
 }
 
 export default function CasePage() {
@@ -239,6 +250,17 @@ export default function CasePage() {
     const [showDramatisDebug, setShowDramatisDebug] = useState(false);
     const [savingPdf, setSavingPdf] = useState(false);
 
+    // Video State
+    const [showVideoModal, setShowVideoModal] = useState(false);
+    const [videoUploading, setVideoUploading] = useState(false);
+    const [selectedVideo, setSelectedVideo] = useState<CaseVideo | null>(null);
+    const [videoChatInput, setVideoChatInput] = useState('');
+    const [videoChatHistory, setVideoChatHistory] = useState<Array<{ role: string, content: string }>>([]);
+    const [videoChatLoading, setVideoChatLoading] = useState(false);
+    const [videoNumFrames, setVideoNumFrames] = useState(32);
+    const [videoFps, setVideoFps] = useState(1);
+    const [videoMaxDuration, setVideoMaxDuration] = useState(60);
+
     // Check LLM configuration and fetch models
     useEffect(() => {
         fetch('/api/settings/')
@@ -325,6 +347,134 @@ export default function CasePage() {
         // The user asked: "allow user to download the results as pdf file, or save the content as pdf file".
         // I'll stick to "Save to Case" for now as it's more robust, and maybe add a "Download" that just triggers the save and then opens the doc.
         await handleSaveDramatisPdf();
+    };
+
+    // Video Handlers
+    const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setVideoUploading(true);
+        try {
+            const res = await fetch(`/api/cases/${params.id}/videos`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (res.ok) {
+                const newVideo = await res.json();
+                setCaseData(prev => prev ? {
+                    ...prev,
+                    videos: [...(prev.videos || []), newVideo]
+                } : null);
+            } else {
+                console.error('Upload failed');
+                alert('Failed to upload video');
+            }
+        } catch (err) {
+            console.error('Error uploading video', err);
+            alert('Error uploading video');
+        } finally {
+            setVideoUploading(false);
+            // Reset input if possible, but we don't have ref here easily, relying on re-render or manual clear if needed
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteVideo = async (videoId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Are you sure you want to delete this video?')) return;
+
+        try {
+            const res = await fetch(`/api/cases/${params.id}/videos/${videoId}`, {
+                method: 'DELETE',
+            });
+
+            if (res.ok) {
+                setCaseData(prev => prev ? {
+                    ...prev,
+                    videos: (prev.videos || []).filter(v => v.id !== videoId)
+                } : null);
+                if (selectedVideo?.id === videoId) {
+                    setSelectedVideo(null);
+                    setVideoChatHistory([]);
+                }
+            } else {
+                alert('Failed to delete video');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting video');
+        }
+    };
+
+    const handleVideoChatSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!videoChatInput.trim() || videoChatLoading || !selectedVideo) return;
+
+        const userMessage = videoChatInput.trim();
+        setVideoChatInput('');
+
+        const newHistory = [...videoChatHistory, { role: 'user', content: userMessage }];
+        setVideoChatHistory(newHistory);
+        setVideoChatLoading(true);
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
+            const res = await fetch(`/api/cases/${params.id}/videos/${selectedVideo.id}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMessage,
+                    history: videoChatHistory,
+                    num_frames: videoNumFrames,
+                    fps: videoFps,
+                    max_duration: videoMaxDuration
+                }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                let responseContent = data.response;
+
+                // Add finish/stop reason info if available
+                if (data.finish_reason || data.stop_reason) {
+                    const reasonInfo = [];
+                    if (data.finish_reason && data.finish_reason !== 'stop') {
+                        reasonInfo.push(`Finish: ${data.finish_reason}`);
+                    }
+                    if (data.stop_reason) {
+                        reasonInfo.push(`Stop: ${data.stop_reason}`);
+                    }
+                    if (reasonInfo.length > 0) {
+                        responseContent += `\n\n---\n*${reasonInfo.join(' | ')}*`;
+                    }
+                }
+
+                setVideoChatHistory([...newHistory, { role: 'assistant', content: responseContent }]);
+            } else {
+                const err = await res.json();
+                setVideoChatHistory([...newHistory, { role: 'assistant', content: `Error: ${err.detail || 'Failed to get response'}` }]);
+            }
+        } catch (err: any) {
+            let errorMessage = 'Error: Failed to communicate with server';
+            if (err.name === 'AbortError') {
+                errorMessage = '⏱️ Request timed out after 5 minutes. The video may be too large or complex. Try reducing the number of frames or duration.';
+            } else if (err.message) {
+                errorMessage = `Error: ${err.message}`;
+            }
+            setVideoChatHistory([...newHistory, { role: 'assistant', content: errorMessage }]);
+        } finally {
+            setVideoChatLoading(false);
+        }
     };
 
     const handleChatSubmit = async (e: React.FormEvent) => {
@@ -863,6 +1013,221 @@ export default function CasePage() {
                 </div>
             )}
 
+            {/* Video Analysis Modal */}
+            {showVideoModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
+                        {/* Header */}
+                        <div className="flex justify-between items-center p-6 border-b border-slate-800">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                Video Analysis
+                            </h3>
+                            <button onClick={() => setShowVideoModal(false)} className="text-slate-400 hover:text-white">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-hidden flex">
+                            {/* Sidebar: Video List */}
+                            <div className="w-1/3 border-r border-slate-800 flex flex-col bg-slate-950/50">
+                                <div className="p-4 border-b border-slate-800">
+                                    <button
+                                        onClick={() => document.getElementById('video-upload')?.click()}
+                                        disabled={videoUploading}
+                                        className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50"
+                                    >
+                                        {videoUploading ? (
+                                            <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                                        ) : (
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                        )}
+                                        Upload Video
+                                    </button>
+                                    <input
+                                        type="file"
+                                        id="video-upload"
+                                        accept=".mp4,.mkv,.mov,.webm"
+                                        className="hidden"
+                                        onChange={handleUploadVideo}
+                                    />
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                    {caseData?.videos && caseData.videos.length > 0 ? (
+                                        caseData.videos.map(video => (
+                                            <div
+                                                key={video.id}
+                                                onClick={() => {
+                                                    setSelectedVideo(video);
+                                                    setVideoChatHistory([]);
+                                                }}
+                                                className={`p-3 rounded-lg cursor-pointer border transition flex justify-between items-center group ${selectedVideo?.id === video.id
+                                                    ? 'bg-blue-900/20 border-blue-500/50'
+                                                    : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <div className="w-8 h-8 bg-slate-800 rounded flex items-center justify-center text-slate-400 flex-shrink-0">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    </div>
+                                                    <div className="truncate">
+                                                        <div className={`text-sm font-medium truncate ${selectedVideo?.id === video.id ? 'text-blue-400' : 'text-slate-300'}`}>{video.filename}</div>
+                                                        <div className="text-xs text-slate-500">{new Date(video.created_date).toLocaleDateString()}</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => handleDeleteVideo(video.id, e)}
+                                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:bg-red-900/20 rounded transition"
+                                                    title="Delete Video"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-8 text-slate-500 text-sm">
+                                            No videos uploaded yet.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Main: Chat Area */}
+                            <div className="flex-1 flex flex-col bg-slate-900">
+                                {selectedVideo ? (
+                                    <>
+                                        <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                                            <div>
+                                                <h4 className="font-semibold text-white">{selectedVideo.filename}</h4>
+                                                <p className="text-xs text-slate-400">AI Video Analysis</p>
+                                            </div>
+                                            <div className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">
+                                                Vision Model Active
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                            {videoChatHistory.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-blue-500">
+                                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                                    </div>
+                                                    <p>Ask questions about the video content.</p>
+                                                    <p className="text-sm mt-2">"What is happening in this video?"</p>
+                                                    <p className="text-sm">"Describe the people visible."</p>
+                                                </div>
+                                            ) : (
+                                                videoChatHistory.map((msg, idx) => (
+                                                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                        <div className={`max-w-[80%] rounded-lg p-3 ${msg.role === 'user'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-slate-800 text-slate-200'
+                                                            }`}>
+                                                            {msg.role === 'assistant' ? (
+                                                                <div className="text-sm prose prose-invert prose-sm max-w-none">
+                                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                                        {msg.content}
+                                                                    </ReactMarkdown>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                            {videoChatLoading && (
+                                                <div className="flex justify-start">
+                                                    <div className="bg-slate-800 rounded-lg p-3">
+                                                        <div className="flex gap-1">
+                                                            <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"></span>
+                                                            <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
+                                                            <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Video Processing Controls */}
+                                        <div className="px-4 py-3 border-t border-slate-800 bg-slate-950/30">
+                                            <details className="group">
+                                                <summary className="cursor-pointer text-xs text-slate-400 hover:text-blue-400 transition flex items-center gap-2">
+                                                    <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                                                    </svg>
+                                                    Video Processing Options
+                                                </summary>
+                                                <div className="mt-3 grid grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="text-xs text-slate-500 block mb-1">Frames</label>
+                                                        <input
+                                                            type="number"
+                                                            value={videoNumFrames}
+                                                            onChange={(e) => setVideoNumFrames(parseInt(e.target.value) || 32)}
+                                                            min="1"
+                                                            max="100"
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs text-slate-500 block mb-1">FPS</label>
+                                                        <input
+                                                            type="number"
+                                                            value={videoFps}
+                                                            onChange={(e) => setVideoFps(parseInt(e.target.value) || 1)}
+                                                            min="1"
+                                                            max="30"
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs text-slate-500 block mb-1">Max Duration (s)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={videoMaxDuration}
+                                                            onChange={(e) => setVideoMaxDuration(parseInt(e.target.value) || 60)}
+                                                            min="1"
+                                                            max="300"
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
+
+                                        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+                                            <form onSubmit={handleVideoChatSubmit} className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={videoChatInput}
+                                                    onChange={(e) => setVideoChatInput(e.target.value)}
+                                                    placeholder="Ask about this video..."
+                                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                                    disabled={videoChatLoading}
+                                                />
+                                                <button
+                                                    type="submit"
+                                                    disabled={videoChatLoading || !videoChatInput.trim()}
+                                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition disabled:opacity-50"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex-1 flex items-center justify-center text-slate-500">
+                                        Select a video to start analysis
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* AI Actions Menu & Chat */}
             <div className="fixed bottom-8 right-8 z-40 flex flex-col items-end gap-4">
                 {showAiMenu && (
@@ -878,6 +1243,18 @@ export default function CasePage() {
                             <div>
                                 <div className="font-medium">Dramatis Personae</div>
                                 <div className="text-[10px] text-slate-500">Analyze parties & roles</div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => { setShowVideoModal(true); setShowAiMenu(false); }}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-3 group"
+                        >
+                            <div className="p-1.5 bg-blue-500/10 rounded-md text-blue-500 group-hover:bg-blue-500 group-hover:text-slate-900 transition">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </div>
+                            <div>
+                                <div className="font-medium">Video Analysis</div>
+                                <div className="text-[10px] text-slate-500">Chat with video evidence</div>
                             </div>
                         </button>
                     </div>
@@ -1069,49 +1446,51 @@ export default function CasePage() {
             </div>
 
             {/* Document Viewer Modal */}
-            {selectedDocument && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedDocument(null)}>
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-6 border-b border-slate-800">
-                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                <span className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                </span>
-                                {selectedDocument.title}
-                            </h3>
-                            <button
-                                onClick={() => setSelectedDocument(null)}
-                                className="text-slate-400 hover:text-white transition"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            </button>
-                        </div>
-                        <div className="p-8 overflow-y-auto bg-slate-950/50 font-mono text-slate-300 leading-relaxed whitespace-pre-wrap">
-                            {selectedDocument.content}
-                        </div>
-                        <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-end gap-3 rounded-b-xl">
-                            <button
-                                onClick={handleDownloadDocument}
-                                className="px-4 py-2 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 transition text-sm flex items-center gap-2"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                                </svg>
-                                Download
-                            </button>
-                            <button
-                                onClick={handlePrintDocument}
-                                className="px-4 py-2 bg-amber-600 text-slate-900 font-semibold rounded hover:bg-amber-500 transition text-sm flex items-center gap-2"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                                </svg>
-                                Print
-                            </button>
+            {
+                selectedDocument && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedDocument(null)}>
+                        <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-6 border-b border-slate-800">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                    <span className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    </span>
+                                    {selectedDocument.title}
+                                </h3>
+                                <button
+                                    onClick={() => setSelectedDocument(null)}
+                                    className="text-slate-400 hover:text-white transition"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                            <div className="p-8 overflow-y-auto bg-slate-950/50 font-mono text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                {selectedDocument.content}
+                            </div>
+                            <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-end gap-3 rounded-b-xl">
+                                <button
+                                    onClick={handleDownloadDocument}
+                                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 transition text-sm flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    Download
+                                </button>
+                                <button
+                                    onClick={handlePrintDocument}
+                                    className="px-4 py-2 bg-amber-600 text-slate-900 font-semibold rounded hover:bg-amber-500 transition text-sm flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                                    </svg>
+                                    Print
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </main>
+                )
+            }
+        </main >
     );
 }
