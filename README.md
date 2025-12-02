@@ -33,7 +33,6 @@ More screenshots can be found in the [docs/images](./docs/images) directory.
 ### Admin Panel
 - Database browser with pagination
 - LLM configuration management
-- System settings management
 - Record detail viewer
 
 ## 🚀 Quick Start
@@ -179,11 +178,8 @@ Copyright © 2025 Justitia & Associates
 
 For issues and questions, please open an issue on GitHub.
 
-## 🎯 Roadmap
+## 🎯 TODO
 
 - [ ] Advanced search and filtering
-- [ ] Email notifications
-- [ ] Calendar integration
-- [ ] Mobile app
-- [ ] Advanced analytics
-- [ ] Multi-tenant support
+- [ ] RAG from shared documents
+- [ ] Visual Q & A

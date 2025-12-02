@@ -11,6 +11,9 @@ interface Case {
   case_type: string;
   defendant_name: string;
   date_opened: string;
+  lead_attorney?: {
+    full_name: string;
+  };
 }
 
 export default function Home() {
@@ -18,6 +21,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetch('/api/cases/')
@@ -36,6 +40,16 @@ export default function Home() {
   const filteredAndSortedCases = cases
     .filter(c => statusFilter === 'all' || c.status === statusFilter)
     .filter(c => typeFilter === 'all' || c.case_type === typeFilter)
+    .filter(c => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        c.title.toLowerCase().includes(query) ||
+        c.description.toLowerCase().includes(query) ||
+        c.defendant_name.toLowerCase().includes(query) ||
+        (c.lead_attorney?.full_name || '').toLowerCase().includes(query)
+      );
+    })
     .sort((a, b) => new Date(b.date_opened).getTime() - new Date(a.date_opened).getTime());
 
   // Get unique statuses and types for filters
@@ -65,6 +79,17 @@ export default function Home() {
         <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
           <h2 className="text-2xl font-semibold">Active Cases</h2>
           <div className="flex gap-3">
+            <div>
+              <label className="text-xs text-slate-500 block mb-1">Search</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search cases..."
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
             <div>
               <label className="text-xs text-slate-500 block mb-1">Status</label>
               <select

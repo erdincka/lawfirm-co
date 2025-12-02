@@ -262,7 +262,7 @@ export default function AdminPage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <select
                                         id="endpoint-select"
-                                        value={endpoint}
+                                        value={endpoint || undefined}
                                         onChange={(e) => setEndpoint(e.target.value)}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-amber-500"
                                     >
