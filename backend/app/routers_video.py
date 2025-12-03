@@ -110,9 +110,9 @@ def delete_video(case_id: int, video_id: int, db: Session = Depends(get_db)):
 class VideoChatRequest(BaseModel):
     message: str
     history: List[dict] = []
-    num_frames: int = 32  # Number of frames to sample
+    num_frames: int = 16  # Number of frames to sample
     fps: int = 1  # Frames per second
-    max_duration: int = 60  # Maximum duration in seconds
+    max_duration: int = 30  # Maximum duration in seconds
 
 @router.post("/{case_id}/videos/{video_id}/chat")
 async def chat_with_video(

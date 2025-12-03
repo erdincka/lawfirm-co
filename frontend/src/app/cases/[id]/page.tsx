@@ -259,9 +259,9 @@ export default function CasePage() {
     const [videoChatInput, setVideoChatInput] = useState('');
     const [videoChatHistory, setVideoChatHistory] = useState<Array<{ role: string, content: string }>>([]);
     const [videoChatLoading, setVideoChatLoading] = useState(false);
-    const [videoNumFrames, setVideoNumFrames] = useState(32);
+    const [videoNumFrames, setVideoNumFrames] = useState(16);
     const [videoFps, setVideoFps] = useState(1);
-    const [videoMaxDuration, setVideoMaxDuration] = useState(60);
+    const [videoMaxDuration, setVideoMaxDuration] = useState(30);
 
     // Check LLM configuration and fetch models
     useEffect(() => {

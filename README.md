@@ -11,7 +11,8 @@ More screenshots can be found in the [docs/images](./docs/images) directory.
 - **Frontend**: Next.js 15 with TypeScript, Tailwind CSS
 - **Backend**: FastAPI (Python 3.12)
 - **Database**: PostgreSQL
-- **Deployment**: Kubernetes with Tilt for local development
+- **Deployment**: HPE Private Cloud AI (HPE PCAI) "Import Framework" compatible (auth-proxy integration not implemented)
+- **Development**: Kubernetes with Tilt for local development
 
 ## ✨ Features
 
@@ -24,10 +25,11 @@ More screenshots can be found in the [docs/images](./docs/images) directory.
 
 ### AI-Powered Chat
 - LLM integration for case analysis
-- Multi-model support (OpenAI, Anthropic, Google, Qwen, etc.)
-- VLM (Vision Language Model) detection
+- Multi-model support (OpenAI compatible API)
 - Automatic context building from case data
 - Readable document content inclusion
+- Video Q&A support
+- Automated "persona dramatis" generation
 - Debug panel for transparency
 
 ### Admin Panel
@@ -38,9 +40,7 @@ More screenshots can be found in the [docs/images](./docs/images) directory.
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker Desktop
-- Kubernetes enabled in Docker Desktop
-- Tilt CLI (`brew install tilt-dev/tap/tilt`)
+- HPE Private Cloud AI (HPE PCAI) admin access
 
 ### Development Setup
 
@@ -61,6 +61,8 @@ More screenshots can be found in the [docs/images](./docs/images) directory.
    - API Docs: http://localhost:8000/docs
 
 ### Environment Variables
+
+Preferred method is to configure during HPE PCAI "Import Framework" setup.
 
 Create `.env` files in both frontend and backend directories:
 
@@ -89,12 +91,6 @@ docker build -f Dockerfile.prod -t lawfirm-backend:latest .
 ```bash
 cd frontend
 docker build -f Dockerfile.prod -t lawfirm-frontend:latest .
-```
-
-### Kubernetes Deployment
-
-```bash
-kubectl apply -f kubernetes/
 ```
 
 ## 🛠️ Development
@@ -180,6 +176,6 @@ For issues and questions, please open an issue on GitHub.
 
 ## 🎯 TODO
 
-- [ ] Advanced search and filtering
+- [x] Advanced search and filtering
 - [ ] RAG from shared documents
-- [ ] Visual Q & A
+- [x] Video Q & A
