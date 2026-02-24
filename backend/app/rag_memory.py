@@ -101,7 +101,8 @@ async def generate_embeddings(
     api_key: str,
     model: str = "text-embedding-ada-002",
     status: Optional[RAGStatus] = None,
-    input_type: Optional[str] = None
+    input_type: Optional[str] = None,
+    ignore_tls: bool = False
 ) -> np.ndarray:
     """
     Generate embeddings using an API endpoint (OpenAI-compatible).
@@ -150,7 +151,7 @@ async def generate_embeddings(
         if input_type:
             payload["input_type"] = input_type
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=not ignore_tls) as client:
             response = await client.post(
                 embeddings_url,
                 headers={
@@ -436,7 +437,7 @@ def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
 class InMemoryRAG:
     """In-memory RAG pipeline for document retrieval using API-based embeddings"""
     
-    def __init__(self, endpoint: str, api_key: str, model: str, status: Optional[RAGStatus] = None):
+    def __init__(self, endpoint: str, api_key: str, model: str, status: Optional[RAGStatus] = None, ignore_tls: bool = False):
         self.endpoint = endpoint
         self.api_key = api_key
         self.model = model
@@ -444,6 +445,7 @@ class InMemoryRAG:
         self.embeddings: Optional[np.ndarray] = None
         self.metadata: List[Dict] = []
         self.status = status
+        self.ignore_tls = ignore_tls
     
     async def index_documents(self, documents: List[Dict]) -> Tuple[int, List[str]]:
         """
@@ -556,7 +558,8 @@ class InMemoryRAG:
                 self.api_key,
                 self.model,
                 self.status,
-                input_type="passage"  # Document chunks are passages
+                input_type="passage",  # Document chunks are passages
+                ignore_tls=self.ignore_tls
             )
             
             return len(all_chunks), failed_documents
@@ -598,7 +601,8 @@ class InMemoryRAG:
                 self.api_key,
                 self.model,
                 self.status,
-                input_type="query"  # User query
+                input_type="query",  # User query
+                ignore_tls=self.ignore_tls
             )
             query_embedding = query_embeddings[0]
             
@@ -648,7 +652,8 @@ async def build_rag_context(
     endpoint: str,
     api_key: str,
     model: str = "text-embedding-ada-002",
-    top_k: int = 5
+    top_k: int = 5,
+    ignore_tls: bool = False
 ) -> Tuple[str, int, Dict]:
     """
     Build RAG context by retrieving relevant chunks from documents.
@@ -682,7 +687,7 @@ async def build_rag_context(
             return "", 0, status.get_summary()
         
         # Create RAG instance with status tracking
-        rag = InMemoryRAG(endpoint, api_key, model, status)
+        rag = InMemoryRAG(endpoint, api_key, model, status, ignore_tls)
         
         # Index documents
         logger.info("PHASE 1: Document Indexing")

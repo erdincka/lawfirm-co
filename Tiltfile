@@ -1,5 +1,9 @@
 # Tiltfile
+allow_k8s_contexts('lonadmin@lonpcaitwl')
 
+# Ensure dev namespace exists and set it as default
+local('kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -')
+config.set_default_namespace('dev')
 # Define the image for the backend
 docker_build('erdincka/lawfirm-backend',
     context='./backend',

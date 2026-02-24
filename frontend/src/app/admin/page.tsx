@@ -28,6 +28,7 @@ export default function AdminPage() {
     const [detectingEmbeddingModels, setDetectingEmbeddingModels] = useState(false);
     const [availableEmbeddingModels, setAvailableEmbeddingModels] = useState<string[]>([]);
     const [inferenceServices, setInferenceServices] = useState([]);
+    const [ignoreTls, setIgnoreTls] = useState(false);
 
     useEffect(() => {
         fetch('/api/admin/tables')
@@ -56,6 +57,9 @@ export default function AdminPage() {
                 if (embEp) setEmbeddingEndpoint(embEp.value);
                 if (embKey) setEmbeddingApiKey(embKey.value);
                 if (embMod) setEmbeddingModel(embMod.value);
+
+                const ignoreTlsSetting = data.find((s: any) => s.key === 'ignore_tls_verification');
+                if (ignoreTlsSetting) setIgnoreTls(ignoreTlsSetting.value === 'true');
             })
             .catch((err) => console.error('Failed to fetch settings', err));
 
@@ -112,7 +116,11 @@ export default function AdminPage() {
             const res = await fetch('/api/settings/detect-models', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ endpoint, api_key: apiKey !== '********' ? apiKey : '' })
+                body: JSON.stringify({ 
+                    endpoint, 
+                    api_key: apiKey !== '********' ? apiKey : '',
+                    ignore_tls: ignoreTls
+                })
             });
             const data = await res.json();
 
@@ -144,7 +152,8 @@ export default function AdminPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     endpoint: embeddingEndpoint,
-                    api_key: embeddingApiKey !== '********' ? embeddingApiKey : ''
+                    api_key: embeddingApiKey !== '********' ? embeddingApiKey : '',
+                    ignore_tls: ignoreTls
                 })
             });
             const data = await res.json();
@@ -231,6 +240,12 @@ export default function AdminPage() {
                 });
             }
 
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'ignore_tls_verification', value: ignoreTls.toString(), is_secret: false }),
+            });
+
             showToast('Settings saved successfully!', 'success');
         } catch (err) {
             console.error('Failed to save settings', err);
@@ -248,6 +263,20 @@ export default function AdminPage() {
                 <h1 className="text-3xl font-bold text-white">System Administration</h1>
                 <p className="text-slate-400">Manage database and system settings</p>
             </header>
+
+                    <div className="flex items-center space-x-3 bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                        <input
+                            id="ignore-tls"
+                            type="checkbox"
+                            checked={ignoreTls}
+                            onChange={(e) => setIgnoreTls(e.target.checked)}
+                            className="w-4 h-4 text-amber-600 bg-slate-900 border-slate-700 rounded focus:ring-amber-500 focus:ring-2"
+                        />
+                        <label htmlFor="ignore-tls" className="text-sm font-medium text-slate-300 cursor-pointer">
+                            Ignore TLS Verification
+                        </label>
+                        <span className="text-xs text-slate-500">(Useful for self-signed certificates or local proxies)</span>
+                    </div>
 
             {/* LLM Configuration Section */}
             <section className="mb-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">

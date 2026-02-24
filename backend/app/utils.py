@@ -13,7 +13,7 @@ def get_llm_config(db: Session):
         db: Database session
         
     Returns:
-        Tuple of (endpoint, api_key) or (None, None) if not configured
+        Tuple of (endpoint, api_key, ignore_tls) or (None, None, False) if not configured
     """
     endpoint = db.query(models_settings.SystemSetting).filter(
         models_settings.SystemSetting.key == "llm_endpoint"
@@ -21,11 +21,16 @@ def get_llm_config(db: Session):
     api_key = db.query(models_settings.SystemSetting).filter(
         models_settings.SystemSetting.key == "llm_api_key"
     ).first()
+    ignore_tls = db.query(models_settings.SystemSetting).filter(
+        models_settings.SystemSetting.key == "ignore_tls_verification"
+    ).first()
+    
+    ignore_tls_val = ignore_tls.value.lower() == "true" if ignore_tls else False
     
     if not endpoint or not api_key:
-        return None, None
+        return None, None, ignore_tls_val
     
-    return endpoint.value, api_key.value
+    return endpoint.value, api_key.value, ignore_tls_val
 
 
 def get_embedding_config(db: Session):
@@ -36,7 +41,7 @@ def get_embedding_config(db: Session):
         db: Database session
         
     Returns:
-        Tuple of (endpoint, api_key, model_name) or (None, None, None) if not configured
+        Tuple of (endpoint, api_key, model_name, ignore_tls) or (None, None, None, False) if not configured
     """
     endpoint = db.query(models_settings.SystemSetting).filter(
         models_settings.SystemSetting.key == "embedding_endpoint"
@@ -47,11 +52,16 @@ def get_embedding_config(db: Session):
     model = db.query(models_settings.SystemSetting).filter(
         models_settings.SystemSetting.key == "embedding_model"
     ).first()
+    ignore_tls = db.query(models_settings.SystemSetting).filter(
+        models_settings.SystemSetting.key == "ignore_tls_verification"
+    ).first()
+    
+    ignore_tls_val = ignore_tls.value.lower() == "true" if ignore_tls else False
     
     if not endpoint or not api_key:
-        return None, None, None
+        return None, None, None, ignore_tls_val
     
     # Model is optional, default to text-embedding-ada-002
     model_name = model.value if model else "text-embedding-ada-002"
     
-    return endpoint.value, api_key.value, model_name
+    return endpoint.value, api_key.value, model_name, ignore_tls_val

@@ -5,7 +5,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: lawfirm-serviceaccount
-    namespace: default
+    namespace: dev
 roleRef:
   kind: ClusterRole
   name: cluster-admin

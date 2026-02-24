@@ -42,6 +42,7 @@ def create_or_update_setting(setting: schemas_admin.SystemSettingCreate, db: Ses
 class DetectModelsRequest(schemas_admin.BaseModel):
     endpoint: str
     api_key: str = ""
+    ignore_tls: bool = False
 
 @router.post("/detect-models")
 async def detect_models(request: DetectModelsRequest):
@@ -62,7 +63,7 @@ async def detect_models(request: DetectModelsRequest):
         if request.api_key and request.api_key != "********":
             headers["Authorization"] = f"Bearer {request.api_key}"
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=not request.ignore_tls) as client:
             response = await client.get(models_url, headers=headers, timeout=10.0)
             
             if response.status_code == 403:

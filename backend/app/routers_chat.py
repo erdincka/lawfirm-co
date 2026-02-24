@@ -73,7 +73,7 @@ async def detect_vlm_capability(llm_endpoint: str, api_key: str, model: str) -> 
     model_lower = model.lower()
     return any(pattern in model_lower for pattern in vlm_patterns)
 
-async def get_available_models(llm_endpoint: str, api_key: str):
+async def get_available_models(llm_endpoint: str, api_key: str, ignore_tls: bool = False):
     """Query LLM endpoint for available models"""
     try:
         # Normalize endpoint
@@ -81,7 +81,7 @@ async def get_available_models(llm_endpoint: str, api_key: str):
         if base_url.endswith('/v1'):
             base_url = base_url.rstrip('/v1')
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=not ignore_tls) as client:
             response = await client.get(
                 f"{base_url}/v1/models",
                 headers={
@@ -106,14 +106,14 @@ async def get_available_models(llm_endpoint: str, api_key: str):
 @router.get("/models")
 async def list_available_models(db: Session = Depends(get_db)):
     """Get list of available LLM models"""
-    llm_endpoint, api_key = get_llm_config(db)
+    llm_endpoint, api_key, ignore_tls = get_llm_config(db)
     if not llm_endpoint or not api_key:
         raise HTTPException(
             status_code=503, 
             detail="LLM endpoint not configured. Please configure in Admin."
         )
     
-    models = await get_available_models(llm_endpoint, api_key)
+    models = await get_available_models(llm_endpoint, api_key, ignore_tls)
     
     if not models:
         # Fallback to common models if endpoint doesn't support /v1/models
@@ -147,7 +147,7 @@ async def chat_with_case(
         raise HTTPException(status_code=404, detail="Case not found")
     
     # Get LLM configuration
-    llm_endpoint, api_key = get_llm_config(db)
+    llm_endpoint, api_key, ignore_tls = get_llm_config(db)
     if not llm_endpoint or not api_key:
         raise HTTPException(status_code=500, detail="LLM configuration missing. Please configure in Admin settings.")
     
@@ -233,7 +233,7 @@ async def chat_with_case(
         # 3. Build RAG context using all documents
         if rag_documents:
             # Get embedding configuration
-            emb_endpoint, emb_api_key, emb_model = get_embedding_config(db)
+            emb_endpoint, emb_api_key, emb_model, emb_ignore_tls = get_embedding_config(db)
             
             if not emb_endpoint or not emb_api_key:
                 logger.warning(f"⚠ Embedding API not configured - skipping RAG")
@@ -254,7 +254,8 @@ async def chat_with_case(
                     endpoint=emb_endpoint,
                     api_key=emb_api_key,
                     model=emb_model,
-                    top_k=5  # Retrieve top 5 most relevant chunks
+                    top_k=5,  # Retrieve top 5 most relevant chunks
+                    ignore_tls=emb_ignore_tls
                 )
                 
                 if rag_context:
@@ -285,7 +286,7 @@ async def chat_with_case(
     # Determine model to use
     model_to_use = chat_request.model
     if not model_to_use:
-        available_models = await get_available_models(llm_endpoint, api_key)
+        available_models = await get_available_models(llm_endpoint, api_key, ignore_tls)
         if available_models:
             model_to_use = available_models[0]
         else:
@@ -353,7 +354,7 @@ Provide accurate, professional responses based on this case data. If asked about
         if base_url.endswith('/v1'):
             base_url = base_url.rstrip('/v1')
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=not ignore_tls) as client:
             response = await client.post(
                 f"{base_url}/v1/chat/completions",
                 headers={

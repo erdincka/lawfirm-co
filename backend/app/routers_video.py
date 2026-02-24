@@ -126,7 +126,7 @@ async def chat_with_video(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
 
-    llm_endpoint, api_key = get_llm_config(db)
+    llm_endpoint, api_key, ignore_tls = get_llm_config(db)
     if not llm_endpoint:
         raise HTTPException(status_code=500, detail="LLM not configured")
     
@@ -168,7 +168,7 @@ async def chat_with_video(
         # Try to get available models, but don't fail if we can't
         available_models = []
         try:
-            available_models = await get_available_models(llm_endpoint, api_key)
+            available_models = await get_available_models(llm_endpoint, api_key, ignore_tls)
             logger.info(f"Available models: {available_models}")
         except Exception as e:
             logger.warning(f"Could not fetch available models: {e}")
@@ -186,7 +186,7 @@ async def chat_with_video(
         
         # Make the LLM call
         import httpx
-        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for video processing
+        async with httpx.AsyncClient(timeout=300.0, verify=not ignore_tls) as client:  # 5 minute timeout for video processing
             base_url = llm_endpoint.rstrip('/').rstrip('/v1')
             
             payload = {

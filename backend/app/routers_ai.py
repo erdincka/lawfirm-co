@@ -34,8 +34,8 @@ def get_db():
     finally:
         db.close()
 
-async def call_llm(endpoint, api_key, messages, model="gpt-oss-20b"):
-    async with httpx.AsyncClient(timeout=60.0) as client:
+async def call_llm(endpoint, api_key, messages, model="gpt-oss-20b", ignore_tls=False):
+    async with httpx.AsyncClient(timeout=60.0, verify=not ignore_tls) as client:
         # Normalize endpoint
         base_url = endpoint.rstrip('/')
         if base_url.endswith('/v1'):
@@ -62,7 +62,7 @@ async def call_llm(endpoint, api_key, messages, model="gpt-oss-20b"):
             
         return data["choices"][0]["message"]["content"]
 
-async def get_available_models(llm_endpoint: str, api_key: str):
+async def get_available_models(llm_endpoint: str, api_key: str, ignore_tls: bool = False):
     """Query LLM endpoint for available models"""
     try:
         # Normalize endpoint
@@ -70,7 +70,7 @@ async def get_available_models(llm_endpoint: str, api_key: str):
         if base_url.endswith('/v1'):
             base_url = base_url.rstrip('/v1')
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=not ignore_tls) as client:
             response = await client.get(
                 f"{base_url}/v1/models",
                 headers={
@@ -96,12 +96,12 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     
-    llm_endpoint, api_key = get_llm_config(db)
+    llm_endpoint, api_key, ignore_tls = get_llm_config(db)
     if not llm_endpoint:
         raise HTTPException(status_code=500, detail="LLM not configured")
 
     # Determine model to use
-    available_models = await get_available_models(llm_endpoint, api_key)
+    available_models = await get_available_models(llm_endpoint, api_key, ignore_tls)
     model_to_use = available_models[0] if available_models else "gpt-oss-20b"
     logger.info(f"Using model: {model_to_use}")
 
@@ -171,7 +171,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
         }
         
         try:
-            response = await call_llm(llm_endpoint, api_key, [{"role": "user", "content": prompt}], model=model_to_use)
+            response = await call_llm(llm_endpoint, api_key, [{"role": "user", "content": prompt}], model=model_to_use, ignore_tls=ignore_tls)
             step_info["raw_response"] = response
             
             # Try to parse JSON
@@ -216,7 +216,7 @@ async def generate_dramatis_personae(case_id: int, db: Session = Depends(get_db)
     
     final_people = extracted_people
     try:
-        final_response = await call_llm(llm_endpoint, api_key, [{"role": "user", "content": consolidation_prompt}], model=model_to_use)
+        final_response = await call_llm(llm_endpoint, api_key, [{"role": "user", "content": consolidation_prompt}], model=model_to_use, ignore_tls=ignore_tls)
         cons_step_info["raw_response"] = final_response
         
         json_match = re.search(r'\[.*\]', final_response, re.DOTALL)
