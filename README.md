@@ -1,181 +1,157 @@
-# Justitia & Associates - Law Firm Case Management System
+# Justitia & Associates — case management with the AI inside the firm
 
-A modern, full-stack case management system for law firms with AI-powered chat assistance.
+A law firm's case files are close to the worst thing you could paste into a public AI
+service: privileged, personally identifying, and often under a court's control.
+**Justitia & Associates** is a demo case management system built the other way round —
+cases, documents and evidence in the firm's own database, and an assistant that reads
+those actual files, running against a model endpoint the firm nominates. Ask it to
+identify everyone involved in a case and it works through the uploaded documents and
+returns a *dramatis personae* — who is the defendant, who is a witness, what the
+evidence says about each — which you can then save back to the case as a PDF. It is a
+reference for teams building document-heavy AI tools in regulated settings, where the
+interesting constraint is never the model but where the documents are allowed to go.
 
-![Dashboard](./docs/images/Dashboard.png)
+> Everything here is fictional: the firm, the cases, the people and the documents are
+> all synthetic test data.
 
-More screenshots can be found in the [docs/images](./docs/images) directory.
+![The case dashboard: active cases with status, type and lead defendant](docs/images/Dashboard.png)
 
-## 🏗️ Architecture
+<table>
+<tr>
+<td width="50%"><img src="docs/images/DramatisPersonaeTreeView.png" alt="An automatically generated cast list for a case, grouped by role"></td>
+<td width="50%"><img src="docs/images/CaseChat.png" alt="The case assistant answering a question using the case's own documents"></td>
+</tr>
+<tr>
+<td><em>Dramatis personae, extracted from the case's own documents and exportable as a PDF.</em></td>
+<td><em>The assistant answers from the case file, and will show you the chunks it used.</em></td>
+</tr>
+</table>
 
-- **Frontend**: Next.js 15 with TypeScript, Tailwind CSS
-- **Backend**: FastAPI (Python 3.12)
-- **Database**: PostgreSQL
-- **Deployment**: HPE Private Cloud AI (HPE PCAI) "Import Framework" compatible (auth-proxy integration not implemented)
-- **Development**: Kubernetes with Tilt for local development
+More screenshots are in [docs/images](./docs/images).
 
-## ✨ Features
+## How it fits together
 
-### Case Management
-- Create and manage legal cases
-- Track case details (defendant, type, status, lead attorney)
-- Document upload and management
-- Evidence logging with categorization
-- Document viewer with download and print capabilities
+```mermaid
+flowchart TB
+    browser["Browser"]
+    fe["<b>Frontend</b><br/>Next.js 15 · TypeScript · Tailwind"]
+    be["<b>Backend</b><br/>FastAPI · Python 3.12"]
+    db[("PostgreSQL<br/><i>cases · documents · evidence</i>")]
+    model["Model endpoint<br/><i>OpenAI-compatible</i>"]
 
-### AI-Powered Chat
-- LLM integration for case analysis
-- Multi-model support (OpenAI compatible API)
-- Automatic context building from case data
-- Readable document content inclusion
-- Video Q&A support
-- Automated "persona dramatis" generation
-- Debug panel for transparency
+    browser --> fe --> be
+    be <--> db
+    be -->|"question + case context<br/>built from stored documents"| model
 
-### Admin Panel
-- Database browser with pagination
-- LLM configuration management
-- Record detail viewer
+    classDef app fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b;
+    classDef ext fill:#f1f5f9,stroke:#475569,color:#0f172a;
+    class fe,be app;
+    class browser,db,model ext;
+```
 
-## 🚀 Quick Start
+The backend assembles context itself: for a given case it pulls the record, the
+readable documents attached to it, and the evidence log, and sends that with the
+question. A debug panel shows exactly what was sent, which matters more than usual
+when the answer is about someone's case.
+
+## Features
+
+**Case management** — create and track cases (defendant, type, status, lead attorney),
+upload and view documents, log categorised evidence, download or print any document.
+
+**The assistant** — chat scoped to a single case, with context built automatically
+from that case's data; multi-model support over any OpenAI-compatible API; video Q&A;
+automatic *dramatis personae* generation with table, tree and spider views; and a
+debug panel showing the assembled prompt and retrieved chunks.
+
+**Admin** — browse the database with pagination, inspect individual records, and
+configure or auto-discover model endpoints.
+
+## Running it
 
 ### Prerequisites
-- HPE Private Cloud AI (HPE PCAI) admin access
 
-### Development Setup
+- A Kubernetes cluster with [Tilt](https://tilt.dev) for the development loop
+- PostgreSQL (the dev environment brings its own)
+- A model endpoint speaking the OpenAI chat API
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd lawfirm-co
-   ```
-
-2. **Start the development environment**
-   ```bash
-   tilt up
-   ```
-
-3. **Access the applications**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-
-### Environment Variables
-
-Preferred method is to configure during HPE PCAI "Import Framework" setup.
-
-Create `.env` files in both frontend and backend directories:
-
-**Backend (.env)**
-```env
-DATABASE_URL=postgresql://user:password@postgres:5432/lawfirm
-```
-
-**Frontend (.env.local)**
-```env
-BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-## 📦 Production Deployment
-
-### Building Production Images
-
-**Backend:**
-```bash
-cd backend
-docker build -f Dockerfile.prod -t lawfirm-backend:latest .
-```
-
-**Frontend:**
-```bash
-cd frontend
-docker build -f Dockerfile.prod -t lawfirm-frontend:latest .
-```
-
-## 🛠️ Development
-
-### Backend Development
+### Development
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+git clone https://github.com/erdincka/lawfirm-co
+cd lawfirm-co
+tilt up
+```
+
+| Service | URL |
+|---|---|
+| Frontend | <http://localhost:3000> |
+| Backend | <http://localhost:8000> |
+| API docs | <http://localhost:8000/docs> |
+
+To run the two halves directly instead:
+
+```bash
+# backend
+cd backend && python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+
+# frontend
+cd frontend && npm install && npm run dev
 ```
 
-### Frontend Development
+### Configuration
+
+| Where | Variable | Purpose |
+|---|---|---|
+| `backend/.env` | `DATABASE_URL` | `postgresql://user:password@postgres:5432/lawfirm` |
+| `frontend/.env.local` | `BACKEND_URL` | `http://localhost:8000` |
+| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` |
+
+The model endpoint and key are set in the **Admin** page at runtime, not in the
+environment — the Admin page can also discover endpoints exposed by the cluster.
+
+### Deploying
+
+A Helm chart is in `helm/lawfirm-co`. On
+[HPE Private Cloud AI](https://www.hpe.com/us/en/hpe-private-cloud-ai.html) the
+**Import Framework** wizard takes the packaged chart and
+[`lawfirm-ai-logo.png`](./lawfirm-ai-logo.png); `helm/redeploy.sh` repackages and
+reapplies in one step. Note that the platform's authentication proxy is **not**
+wired up — the app does its own thing, so do not treat a deployment as access
+controlled.
+
+Production images:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+docker build -f backend/Dockerfile.prod  -t lawfirm-backend:latest  ./backend
+docker build -f frontend/Dockerfile.prod -t lawfirm-frontend:latest ./frontend
 ```
 
-## 📚 API Documentation
+## API
 
-Once the backend is running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+Full interactive docs at `/docs` once the backend is running. The main routes:
 
-### Key Endpoints
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` / `POST` | `/cases` | List or create cases |
+| `GET` | `/cases/{id}` | Case detail |
+| `POST` | `/cases/{id}/documents` | Upload a document |
+| `POST` | `/cases/{id}/evidence` | Add evidence |
+| `POST` | `/chat/cases/{id}` | Ask about a case |
+| `GET` | `/admin/tables` | Browse the database |
+| `GET` | `/health` | Health check |
 
-- `GET /cases` - List all cases
-- `POST /cases` - Create a new case
-- `GET /cases/{id}` - Get case details
-- `POST /cases/{id}/documents` - Upload document
-- `POST /cases/{id}/evidence` - Add evidence
-- `POST /chat/cases/{id}` - Chat with AI about a case
-- `GET /admin/tables` - List database tables
-- `GET /health` - Health check
+## Status
 
-## 🔒 Security
+Demonstration software, not a product. There is no authentication, no tenancy and no
+audit trail; the security work in it is limited to non-root containers, secrets kept
+out of the image, API keys masked in the UI, input validation and CORS. Do not put
+real case material in it.
 
-- Non-root user in Docker containers
-- Environment variable management for secrets
-- API key masking in UI
-- Input validation and sanitization
-- CORS configuration
-
-## 🧪 Testing
-
-**Backend:**
-```bash
-cd backend
-pytest
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm test
-```
-
-## 📊 Monitoring
-
-Health check endpoints are available:
-- Backend: `GET /health`
-- Frontend: `GET /api/health`
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## 📝 License
-
-Copyright © 2025 Justitia & Associates
-
-## 🆘 Support
-
-For issues and questions, please open an issue on GitHub.
-
-## 🎯 TODO
+### Roadmap
 
 - [x] Advanced search and filtering
-- [ ] RAG from shared documents
-- [x] Video Q & A
+- [x] Video Q&A
+- [ ] Retrieval across shared documents, not just the current case
