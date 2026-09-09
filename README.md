@@ -1,5 +1,7 @@
 # Justitia & Associates — case management with the AI inside the firm
 
+> **Prerequisites** — requires [HPE Private Cloud AI](https://www.hpe.com/us/en/hpe-private-cloud-ai.html).
+
 A law firm's case files are close to the worst thing you could paste into a public AI
 service: privileged, personally identifying, and often under a court's control.
 **Justitia & Associates** is a demo case management system built the other way round —
@@ -71,7 +73,9 @@ configure or auto-discover model endpoints.
 
 ### Prerequisites
 
-- A Kubernetes cluster with [Tilt](https://tilt.dev) for the development loop
+- **[HPE Private Cloud AI](https://www.hpe.com/us/en/hpe-private-cloud-ai.html)** to
+  deploy against — it supplies the cluster, the model endpoints and the ingress
+- [Tilt](https://tilt.dev) for the local development loop, which needs neither
 - PostgreSQL (the dev environment brings its own)
 - A model endpoint speaking the OpenAI chat API
 
